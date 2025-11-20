@@ -2,8 +2,8 @@
 
 **Disciplina:** Rețele Neuronale  
 **Instituție:** POLITEHNICA București – FIIR  
-**Student:** [Nume Prenume]  
-**Data:** [Data]  
+**Student:** Ion Radu-Stefan  
+**Data:** 20.11.2025
 
 ---
 
