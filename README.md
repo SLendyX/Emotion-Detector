@@ -40,25 +40,25 @@ project-name/
 
 ### 2.1 Sursa datelor
 
-* **Origine:** [Descriere sursă date - ex: senzori robot, dataset public, simulare]
-* **Modul de achiziție:** ☐ Senzori reali / ☐ Simulare / ☐ Fișier extern / ☐ Generare programatică
-* **Perioada / condițiile colectării:** [Ex: Noiembrie 2024 - Ianuarie 2025, condiții experimentale specifice]
+* **Origine:** Dataset-ul FER2013 (Kaggle Challenge)
+* **Modul de achiziție:** Fișier extern (descărcat)
+* **Perioada / condițiile colectării:** Date istorice, colectate pentru competiția ICML 2013
 
 ### 2.2 Caracteristicile dataset-ului
 
-* **Număr total de observații:** [Ex: 15,000]
-* **Număr de caracteristici (features):** [Ex: 12]
-* **Tipuri de date:** ☐ Numerice / ☐ Categoriale / ☐ Temporale / ☐ Imagini
-* **Format fișiere:** ☐ CSV / ☐ TXT / ☐ JSON / ☐ PNG / ☐ Altele: [...]
+* **Număr total de observații:** Aprox. 35,887 imagini
+* **Număr de caracteristici (features):** 2304 (48x48 pixeli) + 1 etichetă (emoția)
+* **Tipuri de date:** Imagini (convertite în valori numerice de pixeli) și Categoriale (eticheta emoției)
+* **Format fișiere:** CSV
 
 ### 2.3 Descrierea fiecărei caracteristici
 
 | **Caracteristică** | **Tip** | **Unitate** | **Descriere** | **Domeniu valori** |
 |-------------------|---------|-------------|---------------|--------------------|
-| feature_1 | numeric | mm | [...] | 0–150 |
-| feature_2 | categorial | – | [...] | {A, B, C} |
-| feature_3 | numeric | m/s | [...] | 0–2.5 |
-| ... | ... | ... | ... | ... |
+| pixels | numeric (matrice) | intensitate | Valorile pixelilor imaginii grayscale (48x48) | 0-255 |
+| emotion | categorial | - | Clasa emoției (0=Furie, 1=Dezgust, 2=Frică, 3=Fericire, 4=Tristețe, 5=Surpriză, 6=Neutru) | 0–6 |
+| usage | categorial | - | Indică dacă exemplul este pentru Training/PublicTest/PrivateTest | {Training, Test} |
+
 
 **Fișier recomandat:**  `data/README.md`
 
