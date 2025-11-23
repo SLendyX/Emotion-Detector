@@ -1,6 +1,6 @@
 import os
 import cv2
-import numpy
+import numpy as np
 from keras.utils import to_categorical
 
 #----Configurare
@@ -46,5 +46,44 @@ def load_and_preprocess_data(data_type):
                 #Redimensionare
                 resized_array = cv2.resize(img_array, (IMG_SIZE, IMG_SIZE))
 
-                
+                #Adaugam imaginea si eticheta in lista
+                images_list.append(resized_array)
+                labels_list.append(class_num)
 
+            except Exception as e:
+                print(f"Eroare la imagine {img_name}: {e}")
+
+    #Conversia in Numpy Arrays
+    x = np.array(images_list)
+    y = np.array(labels_list)
+
+    #Normalizarea datelor
+    x = x/255.0
+
+    #Reshape pentru CNN
+    # Rețeaua așteaptă 4 dimensiuni: (nr_poze, inaltime, latime, nr_canale)
+    # Noi avem (nr_poze, 48, 48) -> Trebuie să devină (nr_poze, 48, 48, 1)
+    x = x.reshape(-1, IMG_SIZE, IMG_SIZE, 1)
+
+    #One-Hot Encoding pentru etichete           
+    y = to_categorical(y, num_classes=len(CATEGORIES))
+
+    print(f"   Gata {data_type}! Am procesat {len(x)} imagini.")
+    print(f"   Forma datelor x: {x.shape}")
+    print(f"   Forma etichetelor y: {y.shape}")
+    
+    return x, y
+    
+if __name__ == "__main__":
+    if not os.path.exists(PROCESSED_DIR):
+        os.makedirs(PROCESSED_DIR)
+
+    x_train, y_train = load_and_preprocess_data("train")
+
+    x_test, y_test = load_and_preprocess_data("test")
+
+    print(" Salvarea fișierelor .npy...")
+    np.save(os.path.join(PROCESSED_DIR, "X_train.npy"), x_train)
+    np.save(os.path.join(PROCESSED_DIR, "y_train.npy"), y_train)
+    np.save(os.path.join(PROCESSED_DIR, "X_test.npy"), x_test)
+    np.save(os.path.join(PROCESSED_DIR, "y_test.npy"), y_test)

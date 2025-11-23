@@ -1,4 +1,19 @@
-*.env
-*.jpg
-venv
+# Ignoră mediul virtual
+venv/
+config/venv/
+__pycache__/
+
+# Ignoră datele (foarte important!)
+data/raw/
+data/processed/
+data/train/
+data/validation/
+data/test/
+
+# Ignoră fișierele de sistem sau IDE
+.DS_Store
+.vscode/
 *.zip
+# Ignoră modelele antrenate (dacă sunt foarte mari, >100MB)
+# De obicei e ok să lași modelul final .h5 dacă are sub 100MB
+# *.h5
