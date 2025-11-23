@@ -2,7 +2,7 @@
 
 ### 2.1 Sursa datelor
 
-* **Origine:** Dataset-ul FER2013 (Kaggle Challenge)
+* **Origine:** [Dataset-ul FER2013 (Kaggle Challenge)](https://www.kaggle.com/datasets/msambare/fer2013)
 * **Modul de achiziție:** Fișier extern (descărcat)
 * **Perioada / condițiile colectării:** Date istorice, colectate pentru competiția ICML 2013
 
