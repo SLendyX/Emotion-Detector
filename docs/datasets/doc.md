@@ -49,6 +49,7 @@
 
 * **Identificarea outlierilor** (IQR / percentile)
 ![boxplot outlieri](../boxplot_outlieri.png)
+
 *Fig 3. Identificarea imaginilor extreme (prea întunecate sau prea luminoase) folosind metoda IQR.*
 
   * IQR (Interquartile Range): 0.1799
@@ -84,9 +85,23 @@
 
 ### 3.3 Probleme identificate
 
-* [exemplu] Feature X are 8% valori lipsă
-* [exemplu] Distribuția feature Y este puternic neuniformă
-* [exemplu] Variabilitate ridicată în clase (class imbalance)
+* Dezechilibru sever între clase (Class Imbalance):
+
+  * Aceasta este cea mai critică problemă. Clasa "Happy" conține 7215 exemple, în timp ce clasa "Disgust" conține doar 436 exemple.
+
+  * Riscul: Modelul va avea tendința să prezică preponderent "Happy" (fiind varianta "sigură") și va ignora aproape complet "Disgust", deoarece nu are suficiente date pentru a învăța trăsăturile acesteia.
+
+* Variații extreme de iluminare (Outlieri):
+
+  * S-au identificat 120 de imagini outlier din punct de vedere statistic (prea întunecate sau supraexpuse).
+
+  * Riscul: Imaginile cu luminozitate medie sub 0.15 (aproape negre) nu oferă suficiente informații despre contururi pentru straturile convoluționale (CNN), putând introduce "zgomot" în procesul de învățare.
+
+* Ambiguitate vizuală (Overlap):
+
+  * Vizualizarea eșantioanelor arată o similaritate structurală mare între anumite emoții, în special între "Fear" (Frică) și "Surprise" (Surpriză).
+
+  * Riscul: Rezoluția mică (48x48 pixeli) face dificilă distingerea detaliilor fine (ex: forma ochilor vs. forma gurii) necesare pentru a diferenția aceste stări similare.
 
 ---
 
@@ -94,54 +109,76 @@
 
 ### 4.1 Curățarea datelor
 
-* **Eliminare duplicatelor**
+* **Eliminare duplicatelor** 
+  Scriptul de preprocesare a verificat integritatea fiecărui fișier de imagine folosind OpenCV. Imaginile care nu au putut fi citite (NoneType) au fost excluse automat din setul de date.
+
 * **Tratarea valorilor lipsă:**
-  * Feature A: imputare cu mediană
-  * Feature B: eliminare (30% valori lipsă)
-* **Tratarea outlierilor:** IQR / limitare percentile
+  * Pixeli: Nu s-au identificat valori lipsă în matricele de pixeli. Dataset-ul este dens.
+  * Etichete: Toate imaginile procesate au avut o etichetă validă asociată (derivată din numele folderului).
+
+* **Tratarea outlierilor:** IQR / limitare percentile 
+  Deși s-au identificat imagini cu luminozitate extremă (prea întunecate/luminoase), acestea nu au fost eliminate. S-a optat pentru păstrarea lor pentru a crește robusteța modelului la condiții variate de iluminare, bazându-ne pe normalizare pentru a mitiga impactul negativ.
 
 ### 4.2 Transformarea caracteristicilor
 
-* **Normalizare:** Min–Max / Standardizare
-* **Encoding pentru variabile categoriale**
-* **Ajustarea dezechilibrului de clasă** (dacă este cazul)
+* **Redimensionare (Resizing):**
+  Toate imaginile au fost redimensionate la standardul de 48x48 pixeli pentru a asigura consistența tensorului de intrare.
+* **Conversie Grayscale:**
+  Imaginile au fost convertite (sau citite direct) în format alb-negru (1 canal), reducând complexitatea computațională față de imaginile RGB (3 canale).
+* **Reshaping:** 
+  Matricele de imagini au fost transformate din format 2D (48x48) în format 4D compatibil cu TensorFlow: `(număr_exemple, 48, 48, 1)`.
+* **Normalizare:**
+  Valorile pixelilor au fost scalate din intervalul `[0, 255]` în intervalul `[0, 1]` prin împărțirea la 255.0. Aceasta facilitează convergența mai rapidă a algoritmului de optimizare (Adam).
+* **Encoding pentru variabile categoriale:**
+  Etichetele emoțiilor (0-6) au fost transformate folosind One-Hot Encoding (ex: `3` $\rightarrow$ `[0, 0, 0, 1, 0, 0, 0]`) pentru a fi compatibile cu funcția de pierdere `categorical_crossentropy`.
 
 ### 4.3 Structurarea seturilor de date
 
-**Împărțire recomandată:**
-* 70–80% – train
-* 10–15% – validation
-* 10–15% – test
+**Organizarea datelor:**
 
-**Principii respectate:**
-* Stratificare pentru clasificare
-* Fără scurgere de informație (data leakage)
-* Statistici calculate DOAR pe train și aplicate pe celelalte seturi
+  * Datele au fost procesate separat pentru setul de Antrenare (Train) și cel de Testare (Test), respectând structura de directoare originală a dataset-ului.
+
+  * Stratificare: Deoarece s-au preluat toate imaginile din folderele originale, distribuția (dezechilibrată) a claselor s-a păstrat identic în fișierele procesate.
 
 ### 4.4 Salvarea rezultatelor preprocesării
 
-* Date preprocesate în `data/processed/`
-* Seturi train/val/test în foldere dedicate
-* Parametrii de preprocesare în `config/preprocessing_config.*` (opțional)
+  *Datele transformate au fost serializate și salvate în format binar NumPy (`.npy`) în directorul `data/processed/`. Acest format permite o încărcare ultra-rapidă în memorie la momentul antrenării, comparativ cu citirea individuală a zeci de mii de fișiere `.jpg`.
 
 ---
 
 ##  5. Fișiere Generate în Această Etapă
 
-* `data/raw/` – date brute
-* `data/processed/` – date curățate & transformate
-* `data/train/`, `data/validation/`, `data/test/` – seturi finale
-* `src/preprocessing/` – codul de preprocesare
-* `data/README.md` – descrierea dataset-ului
+**Date Procesate (data/processed/)**
+  * x_train.npy: Tensorul imaginilor de antrenare (normalizate, reshaped).
+
+  * y_train.npy: Etichetele de antrenare (One-Hot Encoded).
+
+  * x_test.npy: Tensorul imaginilor de testare.
+
+  * y_test.npy: Etichetele de testare.
+
+**Documentație Vizuală (docs/)**
+  * distributie_clase.png: Histogramă care ilustrează dezechilibrul claselor.
+
+  * esantioane_emotii.png: Colaj cu exemple aleatorii din fiecare categorie de emoție.
+
+  * histograma_pixeli.png: Distribuția intensității pixelilor (verificarea normalizării).
+
+  * boxplot_outlieri.png: Vizualizarea statistică a luminozității medii.
+
+**Cod Sursă (src/)**
+  * src/preprocessing/preprocess_data.py: Scriptul responsabil de curățare, transformare și salvare .npy.
+
+  * src/analysis/detailed_stats.py: Scriptul pentru generarea rapoartelor statistice și a graficelor.
 
 ---
 
 ##  6. Stare Etapă (de completat de student)
 
 - [X] Structură repository configurată
-- [ ] Dataset analizat (EDA realizată)
-- [ ] Date preprocesate
-- [ ] Seturi train/val/test generate
-- [ ] Documentație actualizată în README + `data/README.md`
+- [X] Dataset analizat (EDA realizată)
+- [X] Date preprocesate
+- [X] Seturi train/val/test generate
+- [X] Documentație actualizată în README + `data/README.md`
 
 ---
