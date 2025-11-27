@@ -39,7 +39,7 @@
    * Q1 (25%): 0.3098
    * Q3 (75%): 0.7098
 * **Distribuții pe caracteristici** (histograme)
-(histograma pixeli)[../histograma_pixeli.png]
+[histograma pixeli](../histograma_pixeli.png)
 * **Identificarea outlierilor** (IQR / percentile)
   * IQR (Interquartile Range): 0.1799
    * Limita inferioară (Prea întunecat): 0.1491
