@@ -30,10 +30,22 @@
 
 ### 3.1 Statistici descriptive aplicate
 
-* **Medie, mediană, deviație standard**
+* **Medie, mediană, deviație standard** 
+  * Medie: 0.5077 (Ideal ~0.5 pentru date normalizate)
+   * Mediană: 0.5255
+   * Deviație Standard: 0.2551
 * **Min–max și quartile**
+  * Min: 0.0, Max: 1.0
+   * Q1 (25%): 0.3098
+   * Q3 (75%): 0.7098
 * **Distribuții pe caracteristici** (histograme)
+(histograma pixeli)[../histograma_pixeli.png]
 * **Identificarea outlierilor** (IQR / percentile)
+  * IQR (Interquartile Range): 0.1799
+   * Limita inferioară (Prea întunecat): 0.1491
+   * Limita superioară (Prea luminos): 0.8687
+   * Imagini outlier întunecate: 75
+   * Imagini outlier luminoase: 45
 
 ### 3.2 Analiza calității datelor
 
