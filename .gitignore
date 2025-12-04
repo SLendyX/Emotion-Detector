@@ -4,11 +4,7 @@ config/venv/
 __pycache__/
 
 # Ignoră datele (foarte important!)
-data/raw/
-data/processed/
-data/train/
-data/validation/
-data/test/
+data/
 
 # Ignoră fișierele de sistem sau IDE
 .DS_Store
