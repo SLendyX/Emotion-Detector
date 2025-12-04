@@ -102,7 +102,7 @@ def main():
             # Text Puls + Diagnostic
             info_text = f"BPM: {int(bpm)} | {diagnosis}"
             cv2.putText(display_frame, info_text, (x, y+h+25), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (128, 0, 64), 2)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (128, 0, 220), 2)
 
         cv2.imshow('SIA - Emotion & Heart Rate', display_frame)
 
