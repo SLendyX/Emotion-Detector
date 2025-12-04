@@ -1,7 +1,10 @@
+import os
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
 import cv2
 import numpy as np
 import tensorflow as tf
-import os
 from heart_rate import HeartRateMonitor # <--- NOU: Importăm clasa noastră
 
 # --- CONFIGURARE ---
@@ -17,12 +20,25 @@ def load_sia_model():
         return None
 
 def preprocess_face(face_img):
-    # ... (Codul vechi de preprocesare rămâne la fel) ...
-    face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
+    # 1. Verificăm forma imaginii pentru a vedea dacă e color
+    # OpenCV returnează (H, W) pentru grayscale (len=2) și (H, W, 3) pentru color (len=3)
+    
+    if len(face_img.shape) == 3:
+        # Dacă are 3 dimensiuni, verificăm dacă ultima dimensiune este 3 (canale RGB)
+        if face_img.shape[2] == 3:
+            face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
+    
+    # 2. Redimensionare la 48x48 (cum a fost antrenat modelul)
     face_img = cv2.resize(face_img, (48, 48))
+    
+    # 3. Normalizare (0-1)
     face_img = face_img.astype('float32') / 255.0
-    face_img = np.expand_dims(face_img, axis=0)
-    face_img = np.expand_dims(face_img, axis=-1)
+    
+    # 4. Expand dimensions pentru Keras: (1, 48, 48, 1)
+    # Transformăm (48, 48) -> (1, 48, 48, 1)
+    face_img = np.expand_dims(face_img, axis=0) # Batch dimension
+    face_img = np.expand_dims(face_img, axis=-1) # Channel dimension
+    
     return face_img
 
 def main():
@@ -57,7 +73,8 @@ def main():
                 pred = model.predict(processed, verbose=0)
                 label = EMOTIONS[np.argmax(pred)]
                 conf = np.max(pred) * 100
-            except:
+            except Exception as e:  # <--- MODIFICARE AICI
+                print(f"Eroare la predicție: {e}") # <--- MODIFICARE AICI: Afișăm eroarea în consolă
                 label = "Error"
                 conf = 0
 
@@ -85,7 +102,7 @@ def main():
             # Text Puls + Diagnostic
             info_text = f"BPM: {int(bpm)} | {diagnosis}"
             cv2.putText(display_frame, info_text, (x, y+h+25), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 200, 255), 2)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (128, 0, 64), 2)
 
         cv2.imshow('SIA - Emotion & Heart Rate', display_frame)
 
