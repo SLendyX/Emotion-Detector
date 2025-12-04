@@ -36,7 +36,7 @@ Această etapă corespunde punctului **5. Dezvoltarea arhitecturii aplicației s
 
 Această diagramă descrie logica de funcționare a aplicației `main_app.py`, care integrează recunoașterea emoțiilor și monitorizarea fiziologică.
 
-![State Machine Diagram](docs/state_machine.png)
+![State Machine Diagram](../state_machine.png)
 *(Notă: Asigură-te că ai salvat diagrama în folderul docs/)*
 
 ### Legendă State Machine - Descriere Funcțională
