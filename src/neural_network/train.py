@@ -4,7 +4,8 @@ import tensorflow as tf
 from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D, Dense, Flatten, Dropout, BatchNormalization
 from keras.optimizers import Adam
-from keras.callbacks import ModelCheckpoint, EarlyStopping
+from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
+from keras._tf_keras.keras.preprocessing.image import ImageDataGenerator
 
 # --- CONFIGURARE ---
 DATA_DIR = "data/processed"
@@ -66,6 +67,7 @@ def main():
 
     # 2. Construim modelul
     model = build_model(input_shape)
+
     model.summary() # Afișează structura în consolă
 
     # 3. Pregătim callback-urile (Salvări automate)
@@ -84,20 +86,37 @@ def main():
     # Oprim antrenarea dacă nu mai învață nimic timp de 7 epoci (economie de timp)
     early_stop = EarlyStopping(
         monitor='val_loss',
-        patience=7,
+        patience=15,
         restore_best_weights=True,
         verbose=1
+    )
+
+    reduce_lr = ReduceLROnPlateau(
+    monitor='val_loss', 
+    factor=0.5,       # Cut learning rate in half
+    patience=5,       # Wait 3 epochs before cutting
+    min_lr=0.00001,   # Don't go below this
+    verbose=1
+)
+
+    datagen = ImageDataGenerator(
+        rotation_range=15,      # Rotim imaginea cu până la 15 grade
+        width_shift_range=0.1,  # Deplasăm stânga/dreapta cu 10%
+        height_shift_range=0.1, # Deplasăm sus/jos cu 10%
+        shear_range=0.1,        # Deformăm ușor
+        zoom_range=0.1,         # Zoom in/out 10%
+        horizontal_flip=True,   # Oglindim imaginea (stânga devine dreapta)
+        fill_mode='nearest'     # Umplem golurile create cu pixeli vecini
     )
 
     # 4. START ANTRENARE 🚀
     print("\n🚀 Începem antrenarea! Ia-ți o cafea, durează...")
     history = model.fit(
-        X_train, y_train,
-        batch_size=BATCH_SIZE,
+        datagen.flow(X_train, y_train, batch_size=BATCH_SIZE),
+        steps_per_epoch=len(X_train) // BATCH_SIZE, # Important: Câte batch-uri sunt într-o epocă
         epochs=EPOCHS,
         validation_data=(X_test, y_test),
-        callbacks=[checkpoint, early_stop],
-        shuffle=True
+        callbacks=[checkpoint, early_stop, reduce_lr]
     )
 
     print("\n✅ Antrenare finalizată.")
