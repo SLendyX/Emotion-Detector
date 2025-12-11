@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib
+matplotlib.use('TkAgg') # <--- Setează un backend interactiv
 import matplotlib.pyplot as plt
 import os
 
