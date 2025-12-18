@@ -2,140 +2,133 @@ import os
 import cv2
 import numpy as np
 import random
+from sklearn.model_selection import train_test_split
 from keras.utils import to_categorical
 
 # --- CONFIGURARE ---
-# Ajustează căile dacă sunt diferite la tine
 BASE_DIR = "data"
-RAW_TRAIN_DIR = os.path.join(BASE_DIR, "raw/train")   # Folderul original FER2013
-RAW_TEST_DIR = os.path.join(BASE_DIR, "raw/test")     # Folderul original de test
-GENERATED_DIR = os.path.join(BASE_DIR, "generated")   # Folderul cu datele tale augmentate
-PROCESSED_DIR = os.path.join(BASE_DIR, "processed")   # Unde salvăm array-urile
+RAW_TRAIN_DIR = os.path.join(BASE_DIR, "raw/train") # Sursa FER2013 Train
+RAW_TEST_DIR = os.path.join(BASE_DIR, "raw/test")   # Sursa FER2013 Test
+GENERATED_DIR = os.path.join(BASE_DIR, "generated") # Pozele tale
+PROCESSED_DIR = os.path.join(BASE_DIR, "processed") # Output .npy
 
 IMG_SIZE = 48
 CATEGORIES = ["angry", "disgust", "fear", "happy", "neutral", "sad", "surprise"]
 
-# CALCUL MATEMATIC:
-# Vrem ~4000 imagini din FER. Sunt 7 clase.
-# 4000 / 7 = 571.4 -> Rotunjim la 572 imagini per clasă.
-LIMIT_FER_PER_CLASS = 572 
-
 def process_folder(folder_path, category, limit=None):
     """
-    Citește imaginile dintr-un folder, le face resize și le pune într-o listă.
+    Citește imaginile dintr-un folder specific.
     """
-    images_temp = []
-    labels_temp = []
-    
+    images_temp, labels_temp = [], []
     full_path = os.path.join(folder_path, category)
     
-    # Verificăm dacă folderul există (ca să nu primim eroare dacă lipsește vreo emoție)
     if not os.path.exists(full_path):
-        print(f"⚠️ Atenție: Nu am găsit folderul: {full_path}")
         return [], []
 
-    # Luăm toate fișierele și le amestecăm
     file_names = os.listdir(full_path)
-    random.shuffle(file_names)
+    random.shuffle(file_names) # Amestecăm ca să luăm poze aleatorii din FER
     
-    # Dacă avem limită (ex: doar 572 poze), tăiem lista
-    if limit is not None:
-        file_names = file_names[:limit]
+    if limit: 
+        file_names = file_names[:int(limit)]
         
-    print(f"   -> Procesez {len(file_names)} imagini din: {folder_path.split('/')[-1]}/{category}")
-
-    class_num = CATEGORIES.index(category) # Ex: "happy" -> 3
-
+    class_num = CATEGORIES.index(category)
+    
     for img_name in file_names:
         try:
             img_path = os.path.join(full_path, img_name)
+            # Citim direct în Grayscale
+            img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
             
-            # 1. Citim imaginea direct în Alb-Negru (Grayscale)
-            img_array = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-            
-            if img_array is None:
-                continue # Sărim peste fișiere corupte
-
-            # 2. Redimensionăm la 48x48 (standardul CNN-ului nostru)
-            resized_array = cv2.resize(img_array, (IMG_SIZE, IMG_SIZE))
-            
-            images_temp.append(resized_array)
-            labels_temp.append(class_num)
-            
-        except Exception as e:
-            pass # Ignorăm erorile punctuale
+            if img is not None:
+                # Resize la 48x48
+                img = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
+                images_temp.append(img)
+                labels_temp.append(class_num)
+        except Exception: 
+            continue
             
     return images_temp, labels_temp
 
-def create_training_array():
-    # Aici construim array-ul final combinat
-    X_list = []
-    y_list = []
+def prepare_data():
+    X_train_val_list = []
+    y_train_val_list = []
     
-    print("🔄 --- PASUL 1: Adăugăm imaginile din FER2013 (Subset 4000) ---")
-    for category in CATEGORIES:
-        imgs, lbls = process_folder(RAW_TRAIN_DIR, category, limit=LIMIT_FER_PER_CLASS)
-        X_list.extend(imgs)
-        y_list.extend(lbls)
-
-    print("\n🔄 --- PASUL 2: Adăugăm imaginile TALE (Generate/Augmentate) ---")
-    # Aici NU punem limită, luăm tot ce ai generat tu
-    if os.path.exists(GENERATED_DIR):
-        for category in CATEGORIES:
-            # limit=None înseamnă "ia tot"
-            imgs, lbls = process_folder(GENERATED_DIR, category, limit=None)
-            X_list.extend(imgs)
-            y_list.extend(lbls)
-    else:
-        print("❌ EROARE: Nu găsesc folderul 'data/generated'. Rulează augmentarea mai întâi!")
-
-    # Transformăm listele în NumPy Arrays
-    return np.array(X_list), np.array(y_list)
-
-def create_test_array():
-    # Pentru testare folosim doar datele originale FER (ca să fim corecți)
-    X_list = []
-    y_list = []
+    print("📊 Începem balansarea dinamică (40% Proprii / 60% Publice)...")
     
-    print("\n🔄 --- PASUL 3: Creăm setul de testare (FER2013) ---")
-    for category in CATEGORIES:
-        # Luăm doar 100 de imagini de test per clasă pentru viteză
-        imgs, lbls = process_folder(RAW_TEST_DIR, category, limit=100) 
-        X_list.extend(imgs)
-        y_list.extend(lbls)
+    # 1. Construim setul PRINCIPAL (pentru Train și Validation)
+    for cat in CATEGORIES:
+        # A. Încărcăm TOATE datele tale (Generated)
+        imgs_gen, lbls_gen = process_folder(GENERATED_DIR, cat, limit=None)
+        count_gen = len(imgs_gen)
         
-    return np.array(X_list), np.array(y_list)
+        # B. Calculăm câte poze publice (FER) ne trebuie
+        if count_gen > 0:
+            # Dacă Generated = 40%, atunci FER = 60%.
+            # Raportul 60/40 = 1.5. Deci avem nevoie de 1.5 ori mai multe poze publice.
+            limit_fer = int(count_gen * 1.5)
+        else:
+            # Fallback dacă nu ai poze deloc pentru o clasă (ex: Disgust)
+            print(f"⚠️ Atenție: Nu există poze generate pentru '{cat}'. Folosesc 500 poze FER default.")
+            limit_fer = 500
 
-def finalize_and_save(X, y, name):
-    print(f"\n⚙️ Finalizare array {name}...")
+        # C. Încărcăm datele publice
+        imgs_fer, lbls_fer = process_folder(RAW_TRAIN_DIR, cat, limit=limit_fer)
+        
+        # D. Combinăm
+        X_train_val_list.extend(imgs_gen + imgs_fer)
+        y_train_val_list.extend(lbls_gen + lbls_fer)
+        
+        print(f"   -> Clasa '{cat}': {count_gen} proprii + {len(imgs_fer)} publice (Total: {count_gen + len(imgs_fer)})")
+
+    X_all = np.array(X_train_val_list)
+    y_all = np.array(y_train_val_list)
     
-    # 1. Normalizare: Împărțim la 255 ca să avem valori între 0 și 1
-    # Astfel rețeaua învață mai repede
+    # 2. SPLIT: 85% Train / 15% Validation
+    # Folosim stratify pentru a păstra proporțiile claselor
+    print(f"\n✂️  Împărțire dataset combinat ({len(X_all)} imagini)...")
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_all, y_all, 
+        test_size=0.15, 
+        stratify=y_all, 
+        random_state=42
+    )
+
+    # 3. Construim setul de TEST (Doar date publice - Raw Test)
+    # Acesta rămâne pur pentru a evalua corect generalizarea
+    print("📥 Creare set de TEST (doar date publice)...")
+    X_test_list, y_test_list = [], []
+    for cat in CATEGORIES:
+        # Luăm câte 150-200 de poze per clasă pentru testare rapidă
+        imgs_t, lbls_t = process_folder(RAW_TEST_DIR, cat, limit=200)
+        X_test_list.extend(imgs_t)
+        y_test_list.extend(lbls_t)
+    
+    X_test, y_test = np.array(X_test_list), np.array(y_test_list)
+
+    return (X_train, y_train), (X_val, y_val), (X_test, y_test)
+
+def save_npy(X, y, name):
+    print(f"💾 Salvare {name} shape: {X.shape}")
+    
+    # Normalizare (0-1)
     X = X.astype('float32') / 255.0
     
-    # 2. Reshape: Rețeaua vrea formatul (Nr_Poze, 48, 48, 1)
-    # Acel '1' de la final înseamnă 1 canal de culoare (Gri)
-    if len(X) > 0:
-        X = X.reshape(-1, IMG_SIZE, IMG_SIZE, 1)
+    # Reshape pentru CNN (N, 48, 48, 1)
+    X = X.reshape(-1, IMG_SIZE, IMG_SIZE, 1)
     
-    # 3. One-Hot Encoding la etichete: 3 devine [0,0,0,1,0,0,0]
+    # One-Hot Encoding
     y = to_categorical(y, num_classes=len(CATEGORIES))
     
-    # 4. Salvare pe disc
-    if not os.path.exists(PROCESSED_DIR):
-        os.makedirs(PROCESSED_DIR)
-        
+    if not os.path.exists(PROCESSED_DIR): os.makedirs(PROCESSED_DIR)
+    
     np.save(os.path.join(PROCESSED_DIR, f"X_{name}.npy"), X)
     np.save(os.path.join(PROCESSED_DIR, f"y_{name}.npy"), y)
-    
-    print(f"✅ Array salvat: X_{name}.npy (Shape: {X.shape})")
 
 if __name__ == "__main__":
-    # Executăm funcțiile
-    X_train, y_train = create_training_array()
-    finalize_and_save(X_train, y_train, "train")
+    train, val, test = prepare_data()
     
-    X_test, y_test = create_test_array()
-    finalize_and_save(X_test, y_test, "test")
-
-    print("\n🎉 Gata! Toate imaginile sunt acum în array-uri .npy și gata de antrenare.")
+    save_npy(train[0], train[1], "train")
+    save_npy(val[0], val[1], "val")
+    save_npy(test[0], test[1], "test")
+    
+    print("\n✅ Procesare completă! Datele sunt salvate în folderul 'processed'.")

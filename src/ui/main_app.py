@@ -11,7 +11,7 @@ from datetime import datetime
 from heart_rate import HeartRateMonitor # Asigură-te că ai fișierul heart_rate.py creat anterior
 
 # --- CONFIGURARE ---
-MODEL_PATH = 'models/emotion_model.keras'
+MODEL_PATH = 'models/trained_model.h5'
 HAAR_PATH = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
 EMOTIONS = ["Angry", "Disgust", "Fear", "Happy", "Neutral", "Sad", "Surprise"]
 REPORTS_DIR = "docs/reports"
@@ -23,11 +23,11 @@ COLOR_NEUTRAL = (255, 255, 0)     # Turcoaz/Galben
 COLOR_RECORDING = (0, 0, 128)     # Roșu închis (pentru butonul REC)
 
 def load_sia_model():
-    print(f"🔄 Încărcare model din {MODEL_PATH}...")
+    print(f"🔄 Încărcare model ANTRENAT din {MODEL_PATH}...")
     try:
         return tf.keras.models.load_model(MODEL_PATH)
     except Exception as e:
-        print(f"❌ Eroare model: {e}")
+        print(f"❌ Eroare la încărcarea modelului .h5: {e}")
         return None
 
 def preprocess_face(face_img):

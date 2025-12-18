@@ -4,7 +4,7 @@ import time
 
 # Unde salvăm datele noi
 OUTPUT_DIR = "data/generated"
-EMOTION_TO_CAPTURE = "fear" # Schimbă manual când vrei să capturezi altceva
+EMOTION_TO_CAPTURE = "disgust" # Schimbă manual când vrei să capturezi altceva
 
 def capture_images():
     save_path = os.path.join(OUTPUT_DIR, EMOTION_TO_CAPTURE)

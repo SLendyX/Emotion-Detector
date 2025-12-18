@@ -1,7 +1,7 @@
 import cv2
 import os
 import numpy as np
-from keras.preprocessing.image import ImageDataGenerator, img_to_array, load_img
+from keras._tf_keras.keras.preprocessing.image import ImageDataGenerator, img_to_array, load_img
 
 # CONFIGURARE
 INPUT_DIR = "data/generated"  # Aici pui pozele tale originale (făcute cu capture_data.py)
