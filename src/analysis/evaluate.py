@@ -7,7 +7,7 @@ from keras.models import load_model
 from sklearn.metrics import classification_report, confusion_matrix
 
 # Configurare path-uri conform README
-MODEL_PATH = "models/trained_model.h5"
+MODEL_PATH = "models/best_model.keras"
 DATA_PATH = "data/processed/X_test.npy"
 LABEL_PATH = "data/processed/y_test.npy"
 RESULTS_DIR = "results"

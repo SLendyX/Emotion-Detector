@@ -11,7 +11,7 @@ from datetime import datetime
 from heart_rate import HeartRateMonitor # Asigură-te că ai fișierul heart_rate.py creat anterior
 
 # --- CONFIGURARE ---
-MODEL_PATH = 'models/trained_model.h5'
+MODEL_PATH = 'models/best_model.keras'
 HAAR_PATH = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
 EMOTIONS = ["Angry", "Disgust", "Fear", "Happy", "Neutral", "Sad", "Surprise"]
 REPORTS_DIR = "docs/reports"
