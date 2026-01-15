@@ -1,5 +1,4 @@
 import os
-# Ascundem GPU-ul pentru a evita erorile pe sisteme fără NVIDIA configurat
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 import cv2
@@ -8,7 +7,7 @@ import tensorflow as tf
 import time
 import matplotlib.pyplot as plt
 from datetime import datetime
-from heart_rate import HeartRateMonitor # Asigură-te că ai fișierul heart_rate.py creat anterior
+from heart_rate import HeartRateMonitor
 
 # --- CONFIGURARE ---
 MODEL_PATH = 'models/best_model.keras'
@@ -16,22 +15,36 @@ HAAR_PATH = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
 EMOTIONS = ["Angry", "Disgust", "Fear", "Happy", "Neutral", "Sad", "Surprise"]
 REPORTS_DIR = "docs/reports"
 
-# --- GAMIFICATION: Culori pentru stări ---
-COLOR_RELAXED = (0, 255, 0)       # Verde
-COLOR_STRESSED = (0, 0, 255)      # Roșu
-COLOR_NEUTRAL = (255, 255, 0)     # Turcoaz/Galben
-COLOR_RECORDING = (0, 0, 128)     # Roșu închis (pentru butonul REC)
+# --- GAMIFICATION: Culori Emoții (Format BGR pentru OpenCV) ---
+# Aceste culori vor fi folosite atât Live cât și în Raport
+EMOTION_COLORS = {
+    "Angry":    (0, 0, 255),      # Roșu
+    "Disgust":  (0, 140, 255),    # Portocaliu
+    "Fear":     (255, 0, 255),    # Magenta
+    "Happy":    (0, 255, 0),      # Verde
+    "Neutral":  (200, 200, 200),  # Gri deschis (pentru vizibilitate pe negru)
+    "Sad":      (255, 0, 0),      # Albastru
+    "Surprise": (0, 255, 255)     # Galben
+}
+
+# Culori Stări (Chenar)
+COLOR_RELAXED = (0, 255, 0)       
+COLOR_STRESSED = (0, 0, 255)      
+COLOR_NEUTRAL = (255, 255, 0)     
+
+def bgr_to_mpl(bgr):
+    """Conversie BGR (0-255) la RGB (0-1) pentru Matplotlib"""
+    return (bgr[2]/255, bgr[1]/255, bgr[0]/255)
 
 def load_sia_model():
     print(f"🔄 Încărcare model ANTRENAT din {MODEL_PATH}...")
     try:
         return tf.keras.models.load_model(MODEL_PATH)
     except Exception as e:
-        print(f"❌ Eroare la încărcarea modelului .h5: {e}")
+        print(f"❌ Eroare la încărcarea modelului: {e}")
         return None
 
 def preprocess_face(face_img):
-    # Verificare sigură canale
     if len(face_img.shape) == 3 and face_img.shape[2] == 3:
         face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
     
@@ -43,38 +56,54 @@ def preprocess_face(face_img):
 
 def generate_session_report(history):
     """
-    Generează un grafic cu evoluția sesiunii și îl salvează ca imagine.
+    Generează raportul vizual.
+    history['probs'] este o listă de array-uri cu toate probabilitățile (7 emoții) per frame.
     """
     if not os.path.exists(REPORTS_DIR):
         os.makedirs(REPORTS_DIR)
         
     if len(history['times']) < 2:
         print("⚠️ Sesiune prea scurtă pentru raport.")
-        return
+        return ""
 
-    # Calculăm durata relativă (secunde de la început)
     start_time = history['times'][0]
     relative_times = [t - start_time for t in history['times']]
     
-    plt.figure(figsize=(12, 6))
+    # Convertim lista de array-uri într-un numpy array mare (Frames x 7)
+    # Asta ne permite să extragem coloanele pentru fiecare emoție ușor
+    prob_matrix = np.array(history['probs']) 
+
+    plt.figure(figsize=(12, 10))
     
-    # Subplot 1: Pulsul
+    # --- PLOT 1: PULS (HR) ---
     plt.subplot(2, 1, 1)
-    plt.plot(relative_times, history['bpm'], color='red', linewidth=2, label='Heart Rate (BPM)')
+    plt.plot(relative_times, history['bpm'], color='red', linewidth=2, label='Heart Rate')
     plt.ylabel('BPM')
     plt.title(f'Raport Sesiune - {datetime.now().strftime("%Y-%m-%d %H:%M")}')
     plt.grid(True, alpha=0.3)
-    plt.legend()
+    plt.legend(loc='upper right')
     
-    # Subplot 2: Emoțiile
+    # --- PLOT 2: EVOLUȚIE DETALIATĂ EMOȚII (Top 3 vizibil prin linii) ---
     plt.subplot(2, 1, 2)
-    # Convertim emoțiile text în numere pentru plotare simplă
-    emo_indices = [EMOTIONS.index(e) if e in EMOTIONS else -1 for e in history['emotions']]
-    plt.scatter(relative_times, emo_indices, c=emo_indices, cmap='viridis', s=50, alpha=0.7)
-    plt.yticks(range(len(EMOTIONS)), EMOTIONS)
+    
+    # Desenăm o linie pentru fiecare emoție folosind culoarea ei specifică
+    for i, emotion in enumerate(EMOTIONS):
+        # Extragem seria de timp pentru emoția 'i'
+        emotion_series = prob_matrix[:, i] * 100 # Convertim în procent 0-100
+        
+        # Luăm culoarea din dicționar și o convertim pentru matplotlib
+        color_bgr = EMOTION_COLORS.get(emotion, (128, 128, 128))
+        color_rgb = bgr_to_mpl(color_bgr)
+        
+        # Plotăm linia
+        plt.plot(relative_times, emotion_series, label=emotion, color=color_rgb, linewidth=2, alpha=0.8)
+
+    plt.ylabel('Probabilitate (%)')
     plt.xlabel('Timp (secunde)')
-    plt.ylabel('Emoție Detectată')
+    plt.title('Dinamica Emoțiilor (Toate emoțiile monitorizate)')
+    plt.legend(bbox_to_anchor=(1.01, 1), loc='upper left', borderaxespad=0.) # Legenda în afara graficului
     plt.grid(True, alpha=0.3)
+    plt.ylim(0, 105) # Fixăm axa Y între 0 și 100%
     
     # Salvare
     filename = f"Session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
@@ -95,12 +124,11 @@ def main():
 
     # Variabile Sesiune
     is_recording = False
-    session_data = {'times': [], 'bpm': [], 'emotions': []}
+    # Modificăm structura datelor: stocăm 'probs' (vectorul brut de 7 valori)
+    session_data = {'times': [], 'bpm': [], 'probs': []}
     last_report_path = ""
 
-    print("🎥 Pornire SIA... Comenzi:")
-    print("   [R] - Start/Stop Înregistrare Sesiune (Raport)")
-    print("   [Q] - Ieșire")
+    print("🎥 Pornire SIA... Comenzi: [R] Record | [Q] Quit")
 
     while True:
         ret, frame = cap.read()
@@ -108,12 +136,10 @@ def main():
 
         display_frame = frame.copy()
         
-        # --- UI: Status Bar ---
+        # Indicator REC
         if is_recording:
-            cv2.circle(display_frame, (30, 30), 10, (0, 0, 255), -1) # Bulină roșie REC
+            cv2.circle(display_frame, (30, 30), 10, (0, 0, 255), -1) 
             cv2.putText(display_frame, "REC", (50, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-        else:
-            cv2.putText(display_frame, "Press 'R' to Record", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 1)
 
         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = face_cascade.detectMultiScale(gray_frame, 1.3, 5)
@@ -122,55 +148,85 @@ def main():
             roi_gray = gray_frame[y:y+h, x:x+w]
             roi_color = frame[y:y+h, x:x+w]
 
-            # 1. Inferență Emoție
+            # 1. Inferență
+            top_3_data = [] 
+            current_probs = np.zeros(7) # Placeholder
+
             try:
                 processed = preprocess_face(roi_gray)
-                pred = model.predict(processed, verbose=0)
-                emotion_idx = np.argmax(pred)
-                label = EMOTIONS[emotion_idx]
-                conf = np.max(pred) * 100
+                # Obținem vectorul de 7 probabilități
+                pred = model.predict(processed, verbose=0)[0]
+                current_probs = pred # Salvăm vectorul complet pentru raport
+                
+                # --- LOGICA LIVE TOP 3 ---
+                sorted_indices = np.argsort(pred)[::-1]
+                top_3_indices = sorted_indices[:3]
+                
+                # Emoția principală
+                main_idx = top_3_indices[0]
+                main_label = EMOTIONS[main_idx]
+                main_conf = pred[main_idx] * 100
+                
+                # Pregătim datele pentru afișare text
+                for idx in top_3_indices:
+                    top_3_data.append((EMOTIONS[idx], pred[idx] * 100))
+                    
             except:
-                label = "N/A"
-                conf = 0
+                main_label = "N/A"
+                main_conf = 0
+                top_3_data = [("N/A", 0)]
 
-            # 2. Calcul Puls
+            # 2. Puls
             bpm = hr_monitor.update(roi_color)
 
-            # 3. GAMIFICATION & DIAGNOSTIC
-            # Schimbăm culoarea chenarului în funcție de starea utilizatorului
+            # 3. Gamification Logic
             ui_color = COLOR_NEUTRAL
             status_text = "Zona: Neutru"
 
-            if label in ["Fear", "Angry"] or bpm > 100:
+            if main_label in ["Fear", "Angry"] or bpm > 100:
                 ui_color = COLOR_STRESSED
-                status_text = "Zona: STRES / ALERTA"
-            elif label == "Happy" and bpm < 85:
+                status_text = "Zona: STRES"
+            elif main_label == "Happy" and bpm < 85:
                 ui_color = COLOR_RELAXED
-                status_text = "Zona: Relaxare / Focus"
+                status_text = "Zona: Relaxare"
             
             # --- ÎNREGISTRARE DATE ---
             if is_recording:
                 session_data['times'].append(time.time())
                 session_data['bpm'].append(bpm)
-                session_data['emotions'].append(label)
+                session_data['probs'].append(current_probs) # Salvăm tot vectorul
 
             # --- DESENARE UI ---
-            # Chenar cu colțuri rotunjite (simulat prin linii groase)
             cv2.rectangle(display_frame, (x, y), (x+w, y+h), ui_color, 3)
             
-            # Header Emoție (Sus)
-            cv2.putText(display_frame, f"{label} {int(conf)}%", (x, y-10), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, ui_color, 2)
+            # Header: Emoția principală (Colorată specific)
+            main_emo_color = EMOTION_COLORS.get(main_label, (255,255,255))
+            cv2.putText(display_frame, f"{main_label} {int(main_conf)}%", (x, y-10), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, main_emo_color, 2)
             
-            # Footer Date (Jos)
+            # --- AFIȘARE TOP 3 LATERAL (Colorat & Lizibil) ---
+            text_x = x + w + 10
+            text_y = y + 20
+            
+            # Fundal semitransparent pentru text
+            overlay = display_frame.copy()
+            # Desenăm un dreptunghi negru în dreapta feței
+            cv2.rectangle(overlay, (text_x - 5, y), (text_x + 180, y + 85), (0, 0, 0), -1)
+            cv2.addWeighted(overlay, 0.4, display_frame, 0.6, 0, display_frame)
+
+            for i, (ename, escore) in enumerate(top_3_data):
+                # Culoarea specifică emoției
+                scolor = EMOTION_COLORS.get(ename, (200, 200, 200))
+                cv2.putText(display_frame, f"{ename}: {int(escore)}%", 
+                            (text_x, text_y + (i * 25)), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, scolor, 2)
+
+            # Footer
             cv2.putText(display_frame, f"HR: {int(bpm)} bpm", (x, y+h+25), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-            
-            # Footer Gamification
             cv2.putText(display_frame, status_text, (x, y+h+50), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, ui_color, 1)
 
-        # Afișare mesaj dacă tocmai s-a salvat un raport
         if last_report_path:
             cv2.putText(display_frame, "Raport salvat!", (display_frame.shape[1]-200, 30), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
@@ -181,10 +237,10 @@ def main():
         if key == ord('q'):
             break
         elif key == ord('r'):
-            # Toggle Înregistrare
             if not is_recording:
                 is_recording = True
-                session_data = {'times': [], 'bpm': [], 'emotions': []} # Resetăm datele
+                # Resetăm datele (inclusiv 'probs')
+                session_data = {'times': [], 'bpm': [], 'probs': []} 
                 last_report_path = ""
                 print("⏺️  Sesiune pornită...")
             else:
