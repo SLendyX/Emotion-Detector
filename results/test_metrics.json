@@ -1,6 +1,6 @@
 {
-    "test_accuracy": 0.5342857142857143,
-    "test_f1_macro": 0.5321386506791125,
-    "test_precision_macro": 0.5554497115810887,
-    "test_recall_macro": 0.5342857142857144
+    "test_accuracy": 0.6182817316713577,
+    "test_f1_macro": 0.5334305678918361,
+    "test_precision_macro": 0.6326206932299661,
+    "test_recall_macro": 0.5374538952324901
 }

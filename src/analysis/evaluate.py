@@ -12,13 +12,15 @@ DATA_PATH = "data/processed/X_test.npy"
 LABEL_PATH = "data/processed/y_test.npy"
 RESULTS_DIR = "results"
 DOCS_DIR = "docs"
-CATEGORIES = ["angry", "disgust", "fear", "happy", "neutral", "sad", "surprise"]
+CATEGORIES = ["angry", "disgust", "fear", "happy", "neutral", "sadness", "surprise"]
 
 def evaluate():
     # 1. Încărcare model și date
     model = load_model(MODEL_PATH)
     X_test = np.load(DATA_PATH)
     y_test = np.load(LABEL_PATH)
+    
+    print(len(X_test))
     
     # 2. Predicții
     y_pred = model.predict(X_test)
@@ -47,7 +49,7 @@ def evaluate():
     plt.ylabel('Adevărat')
     plt.savefig(os.path.join(DOCS_DIR, "confusion_matrix.png"))
     
-    print(f"✅ Evaluare finalizată! Accuracy: {metrics['test_accuracy']:.2f}")
+    print(f"✅ Evaluare finalizată! Accuracy: {metrics['test_accuracy']:.2f}\n F1: {metrics['test_f1_macro']:.2f}\n Precision: {metrics["test_precision_macro"]:.2f}\n Recall:{metrics["test_recall_macro"]:.2f}")
 
 if __name__ == "__main__":
     evaluate()

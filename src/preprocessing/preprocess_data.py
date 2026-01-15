@@ -4,20 +4,45 @@ import numpy as np
 import random
 from sklearn.model_selection import train_test_split
 from keras.utils import to_categorical
-from keras._tf_keras.keras.preprocessing.image import ImageDataGenerator, img_to_array
+from keras._tf_keras.keras.preprocessing.image import ImageDataGenerator
+from keras._tf_keras.keras.utils import img_to_array
 
 # --- CONFIGURATION ---
 BASE_DIR = "data"
 RAW_TRAIN_DIR = os.path.join(BASE_DIR, "raw/train") 
 RAW_TEST_DIR = os.path.join(BASE_DIR, "raw/test")   
-GENERATED_DIR = os.path.join(BASE_DIR, "generated") # Your 20 raw photos per class
+GENERATED_DIR = os.path.join(BASE_DIR, "generated") 
 PROCESSED_DIR = os.path.join(BASE_DIR, "processed") 
 
 IMG_SIZE = 48
-CATEGORIES = ["angry", "disgust", "fear", "happy", "neutral", "sad", "surprise"]
-AUGMENT_FACTOR = 20 # 1 photo -> 20 photos
+CATEGORIES = ["angry", "disgust", "fear", "happy", "neutral", "sadness", "surprise"]
 
-# Define the generator for offline augmentation
+# --- 1. TRAIN AUGMENTATION (Aggressive) ---
+# We want massive variety for the model to learn from.
+TRAIN_MULTIPLIERS = {
+    "angry": 1,      
+    "disgust": 4,    
+    "fear": 1,      
+    "happy": 1,      
+    "neutral": 1,
+    "sadness": 1,
+    "surprise": 1
+}
+
+MAX_TRAIN_IMAGES = {
+    "angry": 4000,      
+    "disgust": 9999,    # FER doesn't have this many, so it will just take 100% of them
+    "fear": 4000,       
+    "happy": 4000,      # <--- HEAVY CUT: FER has 7200, we only take 3000
+    "neutral": 4000,    # <--- HEAVY CUT: FER has 4900, we only take 3000
+    "sadness": 4000,
+    "surprise": 4000
+}
+
+# --- 2. VALIDATION AUGMENTATION (Conservative) ---
+# We augment validation just enough to make the class sizes comparable.
+# This prevents "Happy" from dominating the validation accuracy score.
+
 aug_datagen = ImageDataGenerator(
     rotation_range=15,
     width_shift_range=0.1,
@@ -28,32 +53,32 @@ aug_datagen = ImageDataGenerator(
     fill_mode='nearest'
 )
 
-def augment_offline(images):
+def augment_offline(images, multiplier):
     """
     Takes a list of raw images and returns a list of augmented versions.
     """
+    if not images or multiplier <= 1:
+        return images # Return original if no boost needed
+
     augmented_images = []
     
     for img in images:
         # 1. Add original
         augmented_images.append(img)
         
-        # 2. Reshape for Keras (48, 48) -> (1, 48, 48, 1)
+        # 2. Reshape
         x = img_to_array(img)
         x = x.reshape((1,) + x.shape)
         
         # 3. Generate variations
         i = 0
         for batch in aug_datagen.flow(x, batch_size=1):
-            # Extract image from batch
             aug_img = batch[0].astype('uint8')
-            # Remove the extra channel for storage consistency if needed, 
-            # but usually we process as arrays. Let's keep it simple:
             aug_img = aug_img.reshape(IMG_SIZE, IMG_SIZE)
             
             augmented_images.append(aug_img)
             i += 1
-            if i >= AUGMENT_FACTOR:
+            if i >= multiplier: # Stop when we reach the multiplier
                 break
                 
     return augmented_images
@@ -68,25 +93,22 @@ def load_images_from_folder(folder_path, category, limit=None):
 
     file_names = os.listdir(full_path)
     random.shuffle(file_names)
+    if limit and len(file_names) > limit:
+        print(f"   ✂️ Shaving '{category}' from {len(file_names)} down to {limit}...")
+        file_names = file_names[:limit]
     
-    if limit:
-        file_names = file_names[:int(limit)]
-        
     class_num = CATEGORIES.index(category)
-    # clahe = cv2.createCLAHE(clipLimit=1.0, tileGridSize=(8,8))
     
     for img_name in file_names:
         try:
             img_path = os.path.join(full_path, img_name)
             img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-            
             if img is not None:
                 img = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
                 images.append(img)
                 labels.append(class_num)
         except Exception:
             continue
-            
     return images, labels
 
 def prepare_data():
@@ -94,56 +116,70 @@ def prepare_data():
     X_val_list, y_val_list = [], []
     X_test_list, y_test_list = [], []
     
-    print(f"📊 Processing Data with {AUGMENT_FACTOR}x Augmentation...")
+    print(f"📊 Processing Data with Balanced Validation...")
 
     for cat in CATEGORIES:
-        # --- 1. Load YOUR Data ---
-        my_imgs, my_lbls = load_images_from_folder(GENERATED_DIR, cat)
-        
-        # Split FIRST (Crucial for safety)
-        # If you have 20 imgs: 16 Train, 4 Val
-        if len(my_imgs) >= 5:
-            train_imgs_my, val_imgs_my, train_lbls_my, val_lbls_my = train_test_split(
-                my_imgs, my_lbls, test_size=0.2, random_state=42
-            )
-        else:
-            # Fallback for tiny classes
-            train_imgs_my, val_imgs_my = my_imgs, []
-            train_lbls_my, val_lbls_my = my_lbls, []
+        # Get multipliers
+        train_mult = TRAIN_MULTIPLIERS.get(cat, 10)
 
-        # --- 2. AUGMENT Only the Training Split ---
-        # 16 imgs -> 336 imgs
-        print(f"   [{cat}] Augmenting {len(train_imgs_my)} user photos to {len(train_imgs_my)*(AUGMENT_FACTOR+1)}...")
-        train_imgs_my = augment_offline(train_imgs_my)
-        # We need to extend the labels to match the new count
-        train_lbls_my = [train_lbls_my[0]] * len(train_imgs_my) 
+        # --- 1. Load USER Data ---
+        my_imgs, my_lbls = load_images_from_folder(GENERATED_DIR, cat, MAX_TRAIN_IMAGES[cat])
         
-        # --- 3. Load FER Data to Match Volume ---
-        # Now we have ~300 user photos, so we can grab 600 FER photos
-        limit_fer = 600 
-        fer_imgs, fer_lbls = load_images_from_folder(RAW_TRAIN_DIR, cat, limit=limit_fer)
+        if len(my_imgs) > 0:
+            if len(my_imgs) < 5:
+                train_imgs_my, val_imgs_my = my_imgs, []
+                train_lbls_my, val_lbls_my = my_lbls, []
+            else:
+                train_imgs_my, val_imgs_my, train_lbls_my, val_lbls_my = train_test_split(
+                    my_imgs, my_lbls, test_size=0.2, random_state=42
+                )
+            
+            # Augment USER Train AND Val
+            train_imgs_my = augment_offline(train_imgs_my, 40)
+            
+            # Re-generate labels
+            train_lbls_my = [CATEGORIES.index(cat)] * len(train_imgs_my)
+            val_lbls_my = [CATEGORIES.index(cat)] * len(val_imgs_my)
+        else:
+            train_imgs_my, val_imgs_my = [], []
+            train_lbls_my, val_lbls_my = [], []
+
+        # --- 2. Load FER Data ---
+        fer_imgs, fer_lbls = load_images_from_folder(RAW_TRAIN_DIR, cat)
         
-        split_fer = int(len(fer_imgs) * 0.9) # 10% Val for FER is enough
-        train_imgs_fer = fer_imgs[:split_fer]
-        train_lbls_fer = fer_lbls[:split_fer]
-        val_imgs_fer = fer_imgs[split_fer:]
-        val_lbls_fer = fer_lbls[split_fer:]
+        if len(fer_imgs) > 0:
+            split_fer = int(len(fer_imgs) * 0.8) 
+            train_imgs_fer = fer_imgs[:split_fer]
+            val_imgs_fer = fer_imgs[split_fer:]
+            
+            # Special Handling: Augment FER data for weak classes
+            if cat in ["disgust", "fear"]:
+                print(f"   ⚠️  [{cat.upper()}] Boosting FER Validation size by {train_mult}x...")
+                train_imgs_fer = augment_offline(train_imgs_fer, train_mult) # Moderate boost for FER Train
+            
+            # Generate labels
+            train_lbls_fer = [CATEGORIES.index(cat)] * len(train_imgs_fer)
+            val_lbls_fer = [CATEGORIES.index(cat)] * len(val_imgs_fer)
+        else:
+            train_imgs_fer, val_imgs_fer = [], []
+            train_lbls_fer, val_lbls_fer = [], []
         
-        # --- 4. Combine ---
+        # --- 3. Combine ---
         X_train_list.extend(train_imgs_my + train_imgs_fer)
         y_train_list.extend(train_lbls_my + train_lbls_fer)
         
         X_val_list.extend(val_imgs_my + val_imgs_fer)
         y_val_list.extend(val_lbls_my + val_lbls_fer)
         
-        # Test Data
-        t_imgs, t_lbls = load_images_from_folder(RAW_TEST_DIR, cat, limit=100)
+        # --- 4. Test Data (Never Augmented) ---
+        t_imgs, t_lbls = load_images_from_folder(RAW_TEST_DIR, cat)
         X_test_list.extend(t_imgs)
         y_test_list.extend(t_lbls)
 
-        print(f"     -> Final: {len(train_imgs_my)+len(train_imgs_fer)} Train | {len(val_imgs_my)+len(val_imgs_fer)} Val")
+        print(f"     -> {cat.upper()}: {len(train_imgs_my)+len(train_imgs_fer)} Train | {len(val_imgs_my)+len(val_imgs_fer)} Val")
 
     # Arrays & Norm
+    print("\n🔄 Converting to Arrays...")
     X_train = np.array(X_train_list).reshape(-1, IMG_SIZE, IMG_SIZE, 1).astype('float32') / 255.0
     y_train = to_categorical(np.array(y_train_list), num_classes=7)
     
@@ -167,4 +203,4 @@ if __name__ == "__main__":
     save_npy("y_val", y_val)
     save_npy("X_test", X_test)
     save_npy("y_test", y_test)
-    print("\n✅ Processing Complete. Data volume restored safely.")
+    print("✅ Done. Validation data is now balanced.")

@@ -76,9 +76,7 @@ def main():
     weights_dict = dict(enumerate(weights))
 
     # --- ADD THIS: Manually boost Sadness ---
-    #"angry"=0, "disgust"=1, "fear"=2, "happy"=3, "neutral"=4, "sad"=5, "surprise=6"
-    SAD_INDEX = 5 
-    weights_dict[SAD_INDEX] *= 1.5  # Force the model to pay 50% more attention to Sadness errors
+    #"angry"=0, "disgust"=1, "fear"=2, "happy"=3, "neutral"=4, "sad"=5, "surprise=6"    
     print(f"⚖️  Class Weights: {weights_dict}")
 
     # Augmented Generator (Training Only)

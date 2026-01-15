@@ -10,6 +10,9 @@ data/
 .DS_Store
 .vscode/
 *.zip
+*.rar
 # Ignoră modelele antrenate (dacă sunt foarte mari, >100MB)
 # De obicei e ok să lași modelul final .h5 dacă are sub 100MB
 # *.h5
+kdef/
+models/
