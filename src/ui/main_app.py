@@ -10,7 +10,7 @@ from datetime import datetime
 from heart_rate import HeartRateMonitor
 
 # --- CONFIGURARE ---
-MODEL_PATH = 'models/best_model.keras'
+MODEL_PATH = 'models/trained_model.h5'
 HAAR_PATH = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
 EMOTIONS = ["Angry", "Disgust", "Fear", "Happy", "Neutral", "Sad", "Surprise"]
 REPORTS_DIR = "docs/reports"
@@ -115,8 +115,14 @@ def generate_session_report(history):
     return save_path
 
 def main():
+    # --- STATE: Initialization / IDLE ---
+    state = "IDLE"
+    print(f"🔄 State: {state}")
+    
     model = load_sia_model()
-    if model is None: return
+    if model is None: 
+        print("❌ CRITICAL: Model not found. Exiting.")
+        return
 
     cap = cv2.VideoCapture(0)
     face_cascade = cv2.CascadeClassifier(HAAR_PATH)
@@ -124,129 +130,148 @@ def main():
 
     # Variabile Sesiune
     is_recording = False
-    # Modificăm structura datelor: stocăm 'probs' (vectorul brut de 7 valori)
     session_data = {'times': [], 'bpm': [], 'probs': []}
     last_report_path = ""
-
+    
+    # Variabile Temporare per Frame
+    frame = None
+    display_frame = None
+    faces = []
+    
     print("🎥 Pornire SIA... Comenzi: [R] Record | [Q] Quit")
+    state = "ACQUISITION" # Start loop
 
     while True:
-        ret, frame = cap.read()
-        if not ret: break
+        # ---------------------------
+        # STATE: ACQUISITION (Video Capture)
+        # ---------------------------
+        if state == "ACQUISITION":
+            ret, frame = cap.read()
+            if not ret: 
+                break
+            display_frame = frame.copy()
+            
+            # Indicator REC
+            if is_recording:
+                cv2.circle(display_frame, (30, 30), 10, (0, 0, 255), -1) 
+                cv2.putText(display_frame, "REC", (50, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            
+            state = "DETECTION"
 
-        display_frame = frame.copy()
-        
-        # Indicator REC
-        if is_recording:
-            cv2.circle(display_frame, (30, 30), 10, (0, 0, 255), -1) 
-            cv2.putText(display_frame, "REC", (50, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+        # ---------------------------
+        # STATE: DETECTION (Face Detection)
+        # ---------------------------
+        elif state == "DETECTION":
+            gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = face_cascade.detectMultiScale(gray_frame, 1.3, 5)
+            
+            if len(faces) > 0:
+                state = "PROCESSING"
+            else:
+                state = "DISPLAY"
 
-        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray_frame, 1.3, 5)
+        # ---------------------------
+        # STATE: PROCESSING & INFERENCE
+        # ---------------------------
+        elif state == "PROCESSING":
+            for (x, y, w, h) in faces:
+                roi_gray = gray_frame[y:y+h, x:x+w]
+                roi_color = frame[y:y+h, x:x+w]
 
-        for (x, y, w, h) in faces:
-            roi_gray = gray_frame[y:y+h, x:x+w]
-            roi_color = frame[y:y+h, x:x+w]
-
-            # 1. Inferență
-            top_3_data = [] 
-            current_probs = np.zeros(7) # Placeholder
-
-            try:
-                processed = preprocess_face(roi_gray)
-                # Obținem vectorul de 7 probabilități
-                pred = model.predict(processed, verbose=0)[0]
-                current_probs = pred # Salvăm vectorul complet pentru raport
-                
-                # --- LOGICA LIVE TOP 3 ---
-                sorted_indices = np.argsort(pred)[::-1]
-                top_3_indices = sorted_indices[:3]
-                
-                # Emoția principală
-                main_idx = top_3_indices[0]
-                main_label = EMOTIONS[main_idx]
-                main_conf = pred[main_idx] * 100
-                
-                # Pregătim datele pentru afișare text
-                for idx in top_3_indices:
-                    top_3_data.append((EMOTIONS[idx], pred[idx] * 100))
-                    
-            except:
+                # 1. Inferență Emoție
+                top_3_data = [] 
+                current_probs = np.zeros(7)
                 main_label = "N/A"
                 main_conf = 0
-                top_3_data = [("N/A", 0)]
+                
+                try:
+                    processed = preprocess_face(roi_gray)
+                    pred = model.predict(processed, verbose=0)[0]
+                    current_probs = pred
+                    
+                    sorted_indices = np.argsort(pred)[::-1]
+                    top_3_indices = sorted_indices[:3]
+                    
+                    main_idx = top_3_indices[0]
+                    main_label = EMOTIONS[main_idx]
+                    main_conf = pred[main_idx] * 100
+                    
+                    for idx in top_3_indices:
+                        top_3_data.append((EMOTIONS[idx], pred[idx] * 100))
+                except Exception as e:
+                    print(f"Inference Error: {e}")
 
-            # 2. Puls
-            bpm = hr_monitor.update(roi_color)
+                # 2. Puls (Fiziologic)
+                bpm = hr_monitor.update(roi_color)
 
-            # 3. Gamification Logic
-            ui_color = COLOR_NEUTRAL
-            status_text = "Zona: Neutru"
+                # 3. Gamification Logic
+                ui_color = COLOR_NEUTRAL
+                status_text = "Zona: Neutru"
+                if main_label in ["Fear", "Angry"] or bpm > 100:
+                    ui_color = COLOR_STRESSED
+                    status_text = "Zona: STRES"
+                elif main_label == "Happy" and bpm < 85:
+                    ui_color = COLOR_RELAXED
+                    status_text = "Zona: Relaxare"
+                
+                # --- LOGICA RECORDING (în PROCESSING) ---
+                if is_recording:
+                    session_data['times'].append(time.time())
+                    session_data['bpm'].append(bpm)
+                    session_data['probs'].append(current_probs)
 
-            if main_label in ["Fear", "Angry"] or bpm > 100:
-                ui_color = COLOR_STRESSED
-                status_text = "Zona: STRES"
-            elif main_label == "Happy" and bpm < 85:
-                ui_color = COLOR_RELAXED
-                status_text = "Zona: Relaxare"
+                # --- DESENARE PRELIMINARĂ PE FRAME ---
+                # Modificăm direct display_frame aici
+                cv2.rectangle(display_frame, (x, y), (x+w, y+h), ui_color, 3)
+                main_emo_color = EMOTION_COLORS.get(main_label, (255,255,255))
+                cv2.putText(display_frame, f"{main_label} {int(main_conf)}%", (x, y-10), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, main_emo_color, 2)
+                
+                text_x = x + w + 10
+                text_y = y + 20
+                overlay = display_frame.copy()
+                cv2.rectangle(overlay, (text_x - 5, y), (text_x + 180, y + 85), (0, 0, 0), -1)
+                cv2.addWeighted(overlay, 0.4, display_frame, 0.6, 0, display_frame)
+
+                for i, (ename, escore) in enumerate(top_3_data):
+                    scolor = EMOTION_COLORS.get(ename, (200, 200, 200))
+                    cv2.putText(display_frame, f"{ename}: {int(escore)}%", 
+                                (text_x, text_y + (i * 25)), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, scolor, 2)
+                
+                cv2.putText(display_frame, f"HR: {int(bpm)} bpm", (x, y+h+25), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                cv2.putText(display_frame, status_text, (x, y+h+50), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, ui_color, 1)
+
+            state = "DISPLAY"
+
+        # ---------------------------
+        # STATE: DISPLAY / FEEDBACK
+        # ---------------------------
+        elif state == "DISPLAY":
+            if last_report_path:
+                cv2.putText(display_frame, "Raport salvat!", (display_frame.shape[1]-200, 30), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
+
+            cv2.imshow('SIA - Smart Emotion Monitor', display_frame)
+
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
+                break
+            elif key == ord('r'):
+                if not is_recording:
+                    is_recording = True
+                    session_data = {'times': [], 'bpm': [], 'probs': []} 
+                    last_report_path = ""
+                    print("⏺️  Sesiune pornită...")
+                else:
+                    is_recording = False
+                    print("⏹️  Sesiune oprită. Generez raport...")
+                    last_report_path = generate_session_report(session_data)
             
-            # --- ÎNREGISTRARE DATE ---
-            if is_recording:
-                session_data['times'].append(time.time())
-                session_data['bpm'].append(bpm)
-                session_data['probs'].append(current_probs) # Salvăm tot vectorul
-
-            # --- DESENARE UI ---
-            cv2.rectangle(display_frame, (x, y), (x+w, y+h), ui_color, 3)
-            
-            # Header: Emoția principală (Colorată specific)
-            main_emo_color = EMOTION_COLORS.get(main_label, (255,255,255))
-            cv2.putText(display_frame, f"{main_label} {int(main_conf)}%", (x, y-10), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, main_emo_color, 2)
-            
-            # --- AFIȘARE TOP 3 LATERAL (Colorat & Lizibil) ---
-            text_x = x + w + 10
-            text_y = y + 20
-            
-            # Fundal semitransparent pentru text
-            overlay = display_frame.copy()
-            # Desenăm un dreptunghi negru în dreapta feței
-            cv2.rectangle(overlay, (text_x - 5, y), (text_x + 180, y + 85), (0, 0, 0), -1)
-            cv2.addWeighted(overlay, 0.4, display_frame, 0.6, 0, display_frame)
-
-            for i, (ename, escore) in enumerate(top_3_data):
-                # Culoarea specifică emoției
-                scolor = EMOTION_COLORS.get(ename, (200, 200, 200))
-                cv2.putText(display_frame, f"{ename}: {int(escore)}%", 
-                            (text_x, text_y + (i * 25)), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, scolor, 2)
-
-            # Footer
-            cv2.putText(display_frame, f"HR: {int(bpm)} bpm", (x, y+h+25), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-            cv2.putText(display_frame, status_text, (x, y+h+50), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, ui_color, 1)
-
-        if last_report_path:
-            cv2.putText(display_frame, "Raport salvat!", (display_frame.shape[1]-200, 30), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
-
-        cv2.imshow('SIA - Smart Emotion Monitor', display_frame)
-
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord('q'):
-            break
-        elif key == ord('r'):
-            if not is_recording:
-                is_recording = True
-                # Resetăm datele (inclusiv 'probs')
-                session_data = {'times': [], 'bpm': [], 'probs': []} 
-                last_report_path = ""
-                print("⏺️  Sesiune pornită...")
-            else:
-                is_recording = False
-                print("⏹️  Sesiune oprită. Generez raport...")
-                last_report_path = generate_session_report(session_data)
+            # Bucla se reia
+            state = "ACQUISITION"
 
     cap.release()
     cv2.destroyAllWindows()

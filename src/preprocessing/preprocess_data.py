@@ -21,7 +21,7 @@ CATEGORIES = ["angry", "disgust", "fear", "happy", "neutral", "sadness", "surpri
 # We want massive variety for the model to learn from.
 TRAIN_MULTIPLIERS = {
     "angry": 1,      
-    "disgust": 4,    
+    "disgust": 8,    
     "fear": 1,      
     "happy": 1,      
     "neutral": 1,
@@ -31,7 +31,7 @@ TRAIN_MULTIPLIERS = {
 
 MAX_TRAIN_IMAGES = {
     "angry": 4000,      
-    "disgust": 9999,    # FER doesn't have this many, so it will just take 100% of them
+    "disgust": 4000,    # FER doesn't have this many, so it will just take 100% of them
     "fear": 4000,       
     "happy": 4000,      # <--- HEAVY CUT: FER has 7200, we only take 3000
     "neutral": 4000,    # <--- HEAVY CUT: FER has 4900, we only take 3000
@@ -135,7 +135,7 @@ def prepare_data():
                 )
             
             # Augment USER Train AND Val
-            train_imgs_my = augment_offline(train_imgs_my, 40)
+            train_imgs_my = augment_offline(train_imgs_my, 5)
             
             # Re-generate labels
             train_lbls_my = [CATEGORIES.index(cat)] * len(train_imgs_my)

@@ -69,13 +69,14 @@ S-a realizat mixarea datelor generate proprii (40%) cu datele din setul public F
 
 | **Hiperparametru** | **Valoare Aleasă** | **Justificare** |
 |--------------------|-------------------|-----------------|
-| Learning rate | 0.001 | Valoare inițială standard pentru Adam, ajustată dinamic de scheduler (`ReduceLROnPlateau`). |
-| Batch size | 32 | Compromis optim între viteza de actualizare a greutăților și stabilitatea gradientului pe memoria GPU disponibilă. |
-| Number of epochs | 60 | Setat cu o marjă largă; `EarlyStopping` a oprit antrenarea la epoca 58 pentru a preveni overfitting-ul. |
-| Optimizer | Adam | Algoritm adaptiv eficient pentru arhitecturi CNN, converge mai rapid decât SGD. |
-| Loss function | Categorical Crossentropy | Necesară pentru clasificare multi-class (7 clase de emoții, etichete one-hot encoded). |
-| Activation functions | ReLU, Softmax | ReLU în straturile ascunse (evită vanishing gradient), Softmax la output pentru distribuția de probabilitate. |
-| Dropout | 0.3, 0.4, 0.5 | Valori crescătoare pe parcursul rețelei pentru a forța straturile adânci să generalizeze mai bine. |
+| Learning rate | 0.0003 | Valoare redusă pentru stabilitate, ajustată dinamic de scheduler (`ReduceLROnPlateau`). |
+| Batch size | 64 | Crescut pentru o estimare mai stabilă a gradientului și viteză mai mare pe datele augmentate. |
+| Number of epochs | 70 | Extins pentru a permite convergență lentă cu `EarlyStopping` (patience=12). |
+| Optimizer | Adam | Algoritm adaptiv eficient pentru arhitecturi CNN. |
+| Loss function | Categorical Crossentropy (Label Smoothing 0.1) | Label Smoothing ajută modelul să fie mai puțin "supra-încrezător" pe clasele similare (ex: Fear vs Surprise). |
+| Class Weights | Manual (Angry:1.25, Digust:2.0...) | Balansare costuri pentru a penaliza mai mult erorile pe clasele minoritare (Disgust). |
+| Regularization (L2) | 0.0001 | L2 Penalty pe stratul Dense final pentru a preveni overfitting-ul pe trăsături zgomotoase. |
+| Dropout | 0.2, 0.3, 0.4, 0.5 | Dropout progresiv (0.2 -> 0.5) pentru a forța o generalizare robustă în straturile adânci. |
 
 ---
 

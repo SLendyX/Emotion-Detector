@@ -2,7 +2,7 @@
 
 **Disciplina:** Rețele Neuronale  
 **Instituție:** POLITEHNICA București – FIIR  
-**Student:** [Nume Prenume]  
+**Student:** Ion Radu 
 **Link Repository GitHub:** [URL complet]  
 **Data predării:** [Data]
 

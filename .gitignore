@@ -1,6 +1,6 @@
 # Ignoră mediul virtual
 venv/
-config/venv/
+config/
 __pycache__/
 
 # Ignoră datele (foarte important!)
