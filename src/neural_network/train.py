@@ -96,7 +96,7 @@ def main():
     manual_weights = {
         0: 1.25, # Angry: Good
         1: 2.0,  # Disgust: Good
-        2: 1.35, # Fear: Small boost (1.25 -> 1.35) just to help it compete
+        2: 1.15, # Fear: Small boost (1.25 -> 1.35) just to help it compete
         3: 1.0,  # Happy
         4: 1.0,  # Neutral
         5: 1.25, # Sadness: Small trim (1.35 -> 1.25). Not a huge cut, just a "trim".
