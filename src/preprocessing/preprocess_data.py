@@ -12,21 +12,22 @@ BASE_DIR = "data"
 RAW_TRAIN_DIR = os.path.join(BASE_DIR, "raw/train") 
 RAW_TEST_DIR = os.path.join(BASE_DIR, "raw/test")   
 GENERATED_DIR = os.path.join(BASE_DIR, "generated") 
+KDEF_DIR = os.path.join(BASE_DIR, "kdef_cropped")
 PROCESSED_DIR = os.path.join(BASE_DIR, "processed") 
 
-IMG_SIZE = 48
-CATEGORIES = ["angry", "disgust", "fear", "happy", "neutral", "sadness", "surprise"]
+IMG_SIZE = 100
+CATEGORIES = ["angry", "disgust", "fear", "happy", "neutral", "sad", "surprised"]
 
 # --- 1. TRAIN AUGMENTATION (Aggressive) ---
 # We want massive variety for the model to learn from.
 TRAIN_MULTIPLIERS = {
     "angry": 1,      
-    "disgust": 8,    
+    "disgust": 1,    
     "fear": 1,      
     "happy": 1,      
     "neutral": 1,
-    "sadness": 1,
-    "surprise": 1
+    "sad": 1,
+    "surprised": 1
 }
 
 MAX_TRAIN_IMAGES = {
@@ -35,8 +36,8 @@ MAX_TRAIN_IMAGES = {
     "fear": 4000,       
     "happy": 4000,      # <--- HEAVY CUT: FER has 7200, we only take 3000
     "neutral": 4000,    # <--- HEAVY CUT: FER has 4900, we only take 3000
-    "sadness": 4000,
-    "surprise": 4000
+    "sad": 4000,
+    "surprised": 4000
 }
 
 # --- 2. VALIDATION AUGMENTATION (Conservative) ---
@@ -144,6 +145,26 @@ def prepare_data():
             train_imgs_my, val_imgs_my = [], []
             train_lbls_my, val_lbls_my = [], []
 
+        # --- 1.5 Load KDEF Data ---
+        kdef_imgs, kdef_lbls = load_images_from_folder(KDEF_DIR, cat)
+        
+        if len(kdef_imgs) > 0:
+            if len(kdef_imgs) < 5:
+                train_imgs_kdef, val_imgs_kdef = kdef_imgs, []
+                train_lbls_kdef, val_lbls_kdef = kdef_lbls, []
+            else:
+                train_imgs_kdef, val_imgs_kdef, train_lbls_kdef, val_lbls_kdef = train_test_split(
+                    kdef_imgs, kdef_lbls, test_size=0.2, random_state=42
+                )
+            # Augment KDEF (Same as User Data)
+            train_imgs_kdef = augment_offline(train_imgs_kdef, 1)
+            
+            train_lbls_kdef = [CATEGORIES.index(cat)] * len(train_imgs_kdef)
+            val_lbls_kdef = [CATEGORIES.index(cat)] * len(val_imgs_kdef)
+        else:
+            train_imgs_kdef, val_imgs_kdef = [], []
+            train_lbls_kdef, val_lbls_kdef = [], []
+
         # --- 2. Load FER Data ---
         fer_imgs, fer_lbls = load_images_from_folder(RAW_TRAIN_DIR, cat)
         
@@ -165,18 +186,18 @@ def prepare_data():
             train_lbls_fer, val_lbls_fer = [], []
         
         # --- 3. Combine ---
-        X_train_list.extend(train_imgs_my + train_imgs_fer)
-        y_train_list.extend(train_lbls_my + train_lbls_fer)
+        X_train_list.extend(train_imgs_my + train_imgs_kdef + train_imgs_fer)
+        y_train_list.extend(train_lbls_my + train_lbls_kdef + train_lbls_fer)
         
-        X_val_list.extend(val_imgs_my + val_imgs_fer)
-        y_val_list.extend(val_lbls_my + val_lbls_fer)
+        X_val_list.extend(val_imgs_my + val_imgs_kdef + val_imgs_fer)
+        y_val_list.extend(val_lbls_my + val_lbls_kdef + val_lbls_fer)
         
         # --- 4. Test Data (Never Augmented) ---
         t_imgs, t_lbls = load_images_from_folder(RAW_TEST_DIR, cat)
         X_test_list.extend(t_imgs)
         y_test_list.extend(t_lbls)
 
-        print(f"     -> {cat.upper()}: {len(train_imgs_my)+len(train_imgs_fer)} Train | {len(val_imgs_my)+len(val_imgs_fer)} Val")
+        print(f"     -> {cat.upper()}: {len(train_imgs_my)+len(train_imgs_kdef)+len(train_imgs_fer)} Train | {len(val_imgs_my)+len(val_imgs_kdef)+len(val_imgs_fer)} Val")
 
     # Arrays & Norm
     print("\n🔄 Converting to Arrays...")

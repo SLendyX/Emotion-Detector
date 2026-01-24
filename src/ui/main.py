@@ -11,7 +11,7 @@ from keras.models import load_model
 
 app = FastAPI()
 
-MODEL_PATH = "models/trained_model.h5"
+MODEL_PATH = "models/optimized_model.h5"
 
 # --- CONFIGURARE ---
 # Încarcă modelul de emoții

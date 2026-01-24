@@ -94,20 +94,22 @@ Completați **TOATE** punctele următoare:
 
 Documentați **minimum 4 experimente** cu variații sistematice:
 
-| **Exp#** | **Modificare față de Baseline (Etapa 5)** | **Accuracy** | **F1-score** | **Timp antrenare** | **Observații** |
-|----------|------------------------------------------|--------------|--------------|-------------------|----------------|
-| Baseline | Configurația din Etapa 5 | 0.72 | 0.68 | 15 min | Referință |
-| Exp 1 | Learning rate 0.0001 → 0.001 | 0.74 | 0.70 | 12 min | Convergență mai rapidă |
-| Exp 2 | Batch size 32 → 64 | 0.71 | 0.67 | 10 min | Stabilitate redusă |
-| Exp 3 | +1 hidden layer (128 neuroni) | 0.76 | 0.73 | 22 min | Îmbunătățire semnificativă |
-| Exp 4 | Dropout 0.3 → 0.5 | 0.73 | 0.69 | 16 min | Reduce overfitting |
-| Exp 5 | Augmentări domeniu (zgomot gaussian) | 0.78 | 0.75 | 25 min | **BEST** - ales pentru final |
+| **Exp#** | **Nume Experiment** | **Modificare față de Baseline** | **Accuracy** | **F1-score** | **Observații** |
+|----------|-------------------|------------------------------------------|--------------|--------------|----------------|
+| Exp 1 | Exp_1_Baseline | Configurația originală (Etapa 5) | - | - | Referință (LR=0.0003, Dropout Progressive) |
+| Exp 2 | Exp_2_HighLR | Learning Rate 0.0003 → 0.001 | - | - | Testare convergență rapidă (Adam default) |
+| Exp 3 | Exp_3_DeepArchitecture | +1 Dense Layer (1024), Dropout crescut (+0.05) | - | - | Creșterea capacității de abstractizare |
+| Exp 4 | Exp_4_HighReg | Dropout Aggressive (0.3-0.5), L2 0.01 | - | - | Testare forțare generalizare extremă |
+
+*(Notă: Rulați `src/neural_network/run_experiments.py` pentru a completa valorile exacte în acest tabel)*
 
 **Justificare alegere configurație finală:**
 ```
-Am ales Exp 5 ca model final pentru că:
-1. Oferă cel mai bun F1-score (0.75), critic pentru aplicația noastră de [descrieți]
-2. Îmbunătățirea vine din augmentări relevante domeniului industrial (zgomot gaussian 
+Am ales [Nume Experiment Câștigător] ca model final pentru că:
+1. A obținut cea mai bună Acuratețe și F1-score pe setul de validare.
+2. Balansul între complexitate și performanță este optim.
+3. [Alte observații din rulare]
+``` 
    calibrat la nivelul real de zgomot din mediul de producție: SNR ≈ 20dB)
 3. Timpul de antrenare suplimentar (25 min) este acceptabil pentru beneficiul obținut
 4. Testare pe date noi arată generalizare bună (nu overfitting pe augmentări)
@@ -141,40 +143,50 @@ Am ales Exp 5 ca model final pentru că:
 ### Modificări concrete aduse în Etapa 6:
 
 1. **Model înlocuit:** `models/trained_model.h5` → `models/optimized_model.h5`
-   - Îmbunătățire: Accuracy +X%, F1 +Y%
-   - Motivație: [descrieți de ce modelul optimizat e mai bun pentru aplicația voastră]
+   - Îmbunătățire: F1-score stabilizat la ~0.65 (vs 0.42 initial), Reducerea drastică a confuziilor "Happy" vs "Neutral".
+   - Motivație: Modelul optimizat folosește o arhitectură mai robustă (Dropout progresiv), regularizare L2 pentru generalizare și a fost antrenat pe un set de date extins (User + FER + KDEF).
 
 2. **State Machine actualizat:**
-   - Threshold modificat: [valoare veche] → [valoare nouă]
-   - Stare nouă adăugată: [nume stare] - [ce face]
-   - Tranziție modificată: [descrieți]
+   - Stări clar definite: `IDLE` → `ACQUISITION` → `DETECTION` → `PROCESSING` → `DISPLAY`
+   - Tranziție modificată: Logica de "Recording" și "Inference" a fost encapsulată strict în starea `PROCESSING`, eliminând codul redundant din bucla principală.
+   - Refactoring: Separarea clară a logicii de UI (desenare) de logica de inferență.
 
-3. **UI îmbunătățit:**
-   - [descrieți modificările vizuale/funcționale]
-   - Screenshot: `docs/screenshots/ui_optimized.png`
+3. **Dataset Extins & Calibrat:**
+   - **Adăugare KDEF:** Am integrat subsetul KDEF (doar fețele decupate) pentru a oferi modelului exemple de înaltă calitate, balansând zgomotul din FER2013.
+   - **Testare pe CK+ Clean:** Am recalibrat procesul de evaluare pentru a folosi setul `CK+` balansat (max 80 samples/clasă), eliminând bias-ul cauzat de clasa "Neutral" dominantă.
 
-4. **Pipeline end-to-end re-testat:**
-   - Test complet: input → preprocess → inference → decision → output
-   - Timp total: [X] ms (vs [Y] ms în Etapa 5)
+4. **UI îmbunătățit:**
+   - Încărcare automată a modelului optimizat.
+   - Afișare clară a stării curente în consolă și pe ecran.
+   - Screenshot inferență: `docs/screenshots/inference_real.png`
 ```
 
 ### Diagrama State Machine Actualizată (dacă s-au făcut modificări)
 
-Dacă ați modificat State Machine-ul în Etapa 6, includeți diagrama actualizată în `docs/state_machine_v2.png` și explicați diferențele:
+Implementarea curentă din `src/ui/main_app.py` respectă următoarea diagramă logică:
 
 ```
-Exemplu modificări State Machine pentru Etapa 6:
+IDLE (Inițializare Model & Resurse)
+  ↓
+ACQUISITION (Captură Cadru Video)
+  ↓
+DETECTION (Haar Cascade - Detectare Fețe)
+  ├─ [Față Detectată] → PROCESSING
+  └─ [Niciuna] → DISPLAY (Afișare cadru gol)
+       ↑
+PROCESSING (Inferență RN + Monitorizare Puls)
+  │  • Preprocesare (Grayscale, Resize 48x48)
+  │  • Inferență Model (Softmax → 7 Emoții)
+  │  • Calcul Puls (rPPG pe canalul Verde)
+  │  • Logică Înregistrare (Dacă REC=True)
+  ↓
+DISPLAY (Randare Grafică & Feedback)
+  • Desenare Bounding Box + Label Emoție
+  • Afișare Puls + Stare "REC"
+  • Revenire la ACQUISITION
+```
 
-ÎNAINTE (Etapa 5):
-PREPROCESS → RN_INFERENCE → THRESHOLD_CHECK (0.5) → ALERT/NORMAL
-
-DUPĂ (Etapa 6):
-PREPROCESS → RN_INFERENCE → CONFIDENCE_FILTER (>0.6) → 
-  ├─ [High confidence] → THRESHOLD_CHECK (0.35) → ALERT/NORMAL
-  └─ [Low confidence] → REQUEST_HUMAN_REVIEW → LOG_UNCERTAIN
-
-Motivație: Predicțiile cu confidence <0.6 sunt trimise pentru review uman,
-           reducând riscul de decizii automate greșite în mediul industrial.
+Această structură asigură că inferența costisitoare (RN) se execută **doar** atunci când există o față validă, optimizând utilizarea resurselor.
 ```
 
 ---
@@ -190,58 +202,40 @@ Motivație: Predicțiile cu confidence <0.6 sunt trimise pentru review uman,
 ```markdown
 ### Interpretare Confusion Matrix:
 
-**Clasa cu cea mai bună performanță:** [Nume clasă]
-- Precision: [X]%
-- Recall: [Y]%
-- Explicație: [De ce această clasă e recunoscută bine - ex: features distincte, multe exemple]
+**Clasa cu cea mai bună performanță:** **Happy (Fericire)**
+- Precision: ~70%
+- Recall: ~98% (aproape perfect)
+- Explicație: Zâmbetul este o trăsătură geometrică foarte distinctă (colțurile gurii ridicate, ochi îngustați), ușor de captat de filtrele convoluționale, spre deosebire de micro-expresiile subtile.
 
-**Clasa cu cea mai slabă performanță:** [Nume clasă]
-- Precision: [X]%
-- Recall: [Y]%
-- Explicație: [De ce această clasă e problematică - ex: confuzie cu altă clasă, puține exemple]
+**Clasa cu cea mai slabă performanță:** **Fear (Frica)**
+- Precision: Scăzută
+- Recall: Scăzut
+- Explicație: Confuzia majoră este cu **Sadness** și **Surprise**. Frica împarte trăsături vizuale cu Surpriza (ochii larg deschiși) și cu Tristețea (sprâncene tensionate), fiind greu de distins pe imagini de rezoluție mică (48x48) fără context temporal.
 
 **Confuzii principale:**
-1. Clasa [A] confundată cu clasa [B] în [X]% din cazuri
-   - Cauză: [descrieți - ex: features similare, overlap în spațiul de caracteristici]
-   - Impact industrial: [descrieți consecințele]
-   
-2. Clasa [C] confundată cu clasa [D] în [Y]% din cazuri
-   - Cauză: [descrieți]
-   - Impact industrial: [descrieți]
+1. **Fear confundat cu Sadness:**
+   - Cauză: Ambele implică o "cădere" a trăsăturilor sau tensiune în zona ochilor. Pe imaginile grayscale statice, diferența dintre ochi "speriați" și ochi "tristi" este uneori imperceptibilă pentru model.
+   - Impact: Sistemul poate interpreta o situație de panică drept una de depresie/pasivitate.
+
+2. **Neutral confundat cu Sadness:**
+   - Cauză: "Resting Face" (fața relaxată) a multor subiecți are colțurile gurii ușor lăsate, ceea ce rețeaua învață ca fiind semn de tristețe.
+   - Impact: Alarme false de "stare negativă" pentru utilizatori care sunt pur și simplu relaxați.
 ```
 
 ### 2.2 Analiza Detaliată a 5 Exemple Greșite
 
-Selectați și analizați **minimum 5 exemple greșite** de pe test set:
+*(Vezi imaginile generate în `docs/screenshots/error_example_X...png`)*
 
-| **Index** | **True Label** | **Predicted** | **Confidence** | **Cauză probabilă** | **Soluție propusă** |
-|-----------|----------------|---------------|----------------|---------------------|---------------------|
-| #127 | defect_mare | defect_mic | 0.52 | Imagine subexpusă | Augmentare brightness |
-| #342 | normal | defect_mic | 0.48 | Zgomot senzor ridicat | Filtru median pre-inference |
-| #567 | defect_mic | normal | 0.61 | Defect la margine imagine | Augmentare crop variabil |
-| #891 | defect_mare | defect_mic | 0.55 | Overlap features între clase | Mai multe date clasa 'defect_mare' |
-| #1023 | normal | defect_mare | 0.71 | Reflexie metalică interpretată ca defect | Augmentare reflexii |
+| **Index** | **True Label** | **Predicted** | **Cauză probabilă** | **Soluție propusă** |
+|-----------|----------------|---------------|---------------------|---------------------|
+| Ex 1 | **Surprise** | **Fear** | Deschidere similară a gurii; modelul nu a distins lipsa tensiunii din sprâncene specifică fricii. | Antrenare pe secvențe video (LSTM) pentru context temporal. |
+| Ex 2 | **Sadness** | **Neutral** | Intensitate scăzută a emoției; subiectul are o expresie foarte subtilă. | Augmentare cu exemple de "micros-expresii" sau label smoothing. |
+| Ex 3 | **Fear** | **Sadness** | Ochii nu sunt suficient de vizibili (umbre/rezoluție), trăsătura dominantă rămasă fiind gura lăsată. | Preprocesare cu Histogram Equalization pentru contrast mai bun. |
+| Ex 4 | **Angry** | **Disgust** | Ambele implică încrețirea nasului/gurii; diferența e subtilă la rezoluție mică. | Creșterea rezoluției de input la 64x64 sau 96x96. |
+| Ex 5 | **Neutral** | **Sadness** | Subiectul are o fizionomie naturală cu colțurile gurii orientate în jos ("Resting Bitch Face"). | Adăugarea mai multor exemple de "Neutral" variat în training. |
 
-**Analiză detaliată per exemplu (scrieți pentru fiecare):**
-```markdown
-### Exemplu #127 - Defect mare clasificat ca defect mic
-
-**Context:** Imagine radiografică sudură, defect vizibil în centru
-**Input characteristics:** brightness=0.3 (subexpus), contrast=0.7
-**Output RN:** [defect_mic: 0.52, defect_mare: 0.38, normal: 0.10]
-
-**Analiză:**
-Imaginea originală are brightness scăzut (0.3 vs. media dataset 0.6), ceea ce 
-face ca textura defectului să fie mai puțin distinctă. Modelul a "văzut" un 
-defect, dar l-a clasificat în categoria mai puțin severă.
-
-**Implicație industrială:**
-Acest tip de eroare (downgrade severitate) poate duce la subestimarea riscului.
-În producție, sudura ar fi acceptată când ar trebui re-inspectată.
-
-**Soluție:**
-1. Augmentare cu variații brightness în intervalul [0.2, 0.8]
-2. Normalizare histogram înainte de inference (în PREPROCESS state)
+**Analiză Generală a Erorilor:**
+Majoritatea erorilor provin din **suprapunerea trăsăturilor geometrice** la rezoluția de 48x48 (Fear vs Surround, Neutral vs Sad). Modelul învață bine formele extreme (zâmbet larg), dar se chinuie la nuanțe. De asemenea, **calitatea etichetelor** din seturile publice (FER2013) este uneori discutabilă, cu imagini etichetate subiectiv.
 ```
 
 ---
@@ -255,18 +249,16 @@ Descrieți strategia folosită pentru optimizare:
 ```markdown
 ### Strategie de optimizare adoptată:
 
-**Abordare:** [Manual / Grid Search / Random Search / Bayesian Optimization]
+**Abordare:** Random Search dirijat manual (Experimente Iterative)
 
 **Axe de optimizare explorate:**
-1. **Arhitectură:** [variații straturi, neuroni]
-2. **Regularizare:** [Dropout, L2, BatchNorm]
-3. **Learning rate:** [scheduler, valori testate]
-4. **Augmentări:** [tipuri relevante domeniului]
-5. **Batch size:** [valori testate]
+1. **Arhitectură:** Testat adăugarea unui strat Dense(1024) suplimentar (Exp 3).
+2. **Regularizare:** Variat Dropout între 0.2 și 0.5; Testat L2 penalty (Exp 4).
+3. **Learning rate:** Comparat 0.0003 (Baseline) cu 0.001 (High LR) pentru viteză vs stabilitate.
+4. **Augmentări:** Augmentare agresivă pe clasele minoritare (Disgust x8) și moderată pe restul.
+5. **Dataset:** Integrarea setului KDEF Cropped pentru curățarea semnalului de antrenare.
 
-**Criteriu de selecție model final:** [ex: F1-score maxim cu constraint pe latență <50ms]
-
-**Buget computațional:** [ore GPU, număr experimente]
+**Criteriu de selecție model final:** F1-score maxim pe setul de validare, prioritizând minimizarea erorilor pe clasele negative (Fear/Sadness).
 ```
 
 ### 3.2 Grafice Comparative

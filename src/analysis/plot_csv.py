@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Load the dataframe
-df_history = pd.read_csv('./results/history.csv')
+df_history = pd.read_csv('./results/training_history.csv')
 
 # Create a figure with 3 subplots
 fig, axes = plt.subplots(1, 3, figsize=(18, 5))
@@ -37,4 +37,4 @@ axes[2].legend()
 axes[2].grid(True)
 
 plt.tight_layout()
-plt.savefig('history_plots.png')
+plt.savefig('docs/history_plots.png')
