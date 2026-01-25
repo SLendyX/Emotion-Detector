@@ -1,5 +1,0 @@
-Experiment,Accuracy,F1_Score,Epochs,Config
-Exp_1_Baseline,0.6486928104575164,0.6510499506974682,35,"{'learning_rate': 0.0003, 'batch_size': 64, 'dropout_1': 0.2, 'dropout_2': 0.3, 'dropout_3': 0.4, 'dropout_4': 0.4, 'extra_dense_layer': False, 'l2_reg': 0.0001}"
-Exp_2_HighLR,0.6572712418300654,0.6620210942453689,35,"{'learning_rate': 0.001, 'batch_size': 64, 'dropout_1': 0.2, 'dropout_2': 0.3, 'dropout_3': 0.4, 'dropout_4': 0.4, 'extra_dense_layer': False, 'l2_reg': 0.0001}"
-Exp_3_DeepArchitecture,0.6225490196078431,0.6209558497134655,35,"{'learning_rate': 0.0003, 'batch_size': 64, 'dropout_1': 0.25, 'dropout_2': 0.35, 'dropout_3': 0.45, 'dropout_4': 0.5, 'extra_dense_layer': True, 'l2_reg': 0.0001}"
-Exp_4_HighReg,0.6070261437908496,0.6036419288474496,35,"{'learning_rate': 0.0003, 'batch_size': 64, 'dropout_1': 0.3, 'dropout_2': 0.4, 'dropout_3': 0.5, 'dropout_4': 0.5, 'l2_reg': 0.01, 'extra_dense_layer': False}"

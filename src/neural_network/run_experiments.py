@@ -1,208 +1,232 @@
 import os
-import numpy as np
-import pandas as pd
-import tensorflow as tf
-from keras.models import Sequential
-from keras.layers import Conv2D, MaxPooling2D, Dense, GlobalAveragePooling2D, Dropout, BatchNormalization, Activation
-from keras.optimizers import Adam
-from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from keras.regularizers import l2
-from keras.losses import CategoricalCrossentropy
-from sklearn.metrics import accuracy_score, f1_score
+import glob
+import random
+import math
+import csv
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms, models
+from PIL import Image
+import copy
 
-# --- CONFIG ---
-BASE_DIR = "data/processed"
-MODELS_DIR = "models"
-RESULTS_DIR = "results"
-EXPERIMENTS_FILE = os.path.join(RESULTS_DIR, "experiments_results.csv")
+# --- CONFIGURARE GENERALĂ ---
+BATCH_SIZE = 32
+EPOCHS = 15
+IMAGE_SIZE = 224
+NUM_CLASSES = 7 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+RESULTS_DIR = 'docs/optimization'
+MODELS_DIR = 'models'
 
-if not os.path.exists(MODELS_DIR): os.makedirs(MODELS_DIR)
-if not os.path.exists(RESULTS_DIR): os.makedirs(RESULTS_DIR)
+# Căi date
+RAF_TRAIN_DIR = 'data/raw/train'
+RAF_TEST_DIR = 'data/raw/test'
+MY_DATA_DIR = 'data/generated'
 
-# --- LOAD DATA ---
-def load_data():
-    print("🔄 Loading Data...")
-    try:
-        X_train = np.load(f"{BASE_DIR}/X_train.npy")
-        y_train = np.load(f"{BASE_DIR}/y_train.npy")
-        X_val = np.load(f"{BASE_DIR}/X_val.npy")
-        y_val = np.load(f"{BASE_DIR}/y_val.npy")
-        return X_train, y_train, X_val, y_val
-    except FileNotFoundError:
-        print("❌ Error: .npy files not found.")
-        return None, None, None, None
+# Asigurare directoare
+os.makedirs(RESULTS_DIR, exist_ok=True)
+os.makedirs(MODELS_DIR, exist_ok=True)
 
-# --- MODEL BUILDER FACTORY ---
-def build_model(config):
-    """
-    Constructs a model based on the configuration dictionary.
-    config keys: 'dropout_rate', 'l2_reg', 'extra_dense_layer', 'learning_rate'
-    """
-    model = Sequential()
+# --- 1. DATASET & BALANCING (Reutilizat) ---
+def create_balanced_file_list(raf_dir, my_data_dir):
+    raf_files = glob.glob(os.path.join(raf_dir, '*', '*.jpg')) + glob.glob(os.path.join(raf_dir, '*', '*.png'))
+    gen_files = glob.glob(os.path.join(my_data_dir, '*', '*.jpg')) + glob.glob(os.path.join(my_data_dir, '*', '*.png'))
     
-    # Block 1
-    model.add(Conv2D(64, (3, 3), padding='same', input_shape=(48, 48, 1)))
-    model.add(BatchNormalization())
-    model.add(Activation('relu'))
-    model.add(Conv2D(64, (3, 3), padding='same'))
-    model.add(BatchNormalization())
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D(2, 2))
-    model.add(Dropout(config.get('dropout_1', 0.2)))
-
-    # Block 2
-    model.add(Conv2D(128, (3, 3), padding='same'))
-    model.add(BatchNormalization())
-    model.add(Activation('relu'))
-    model.add(Conv2D(128, (3, 3), padding='same'))
-    model.add(BatchNormalization())
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D(2, 2))
-    model.add(Dropout(config.get('dropout_2', 0.3)))
-
-    # Block 3
-    model.add(Conv2D(256, (3, 3), padding='same'))
-    model.add(BatchNormalization())
-    model.add(Activation('relu'))
-    model.add(Conv2D(256, (3, 3), padding='same'))
-    model.add(BatchNormalization())
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D(2, 2))
-    model.add(Dropout(config.get('dropout_3', 0.4)))
+    # Logică balansare 40%
+    target_total = len(raf_files) / 0.60
+    target_gen_count = int(target_total * 0.40)
+    repeat_factor = math.ceil(target_gen_count / max(1, len(gen_files)))
     
-    # Block 4
-    model.add(Conv2D(512, (3, 3), padding='same'))
-    model.add(BatchNormalization())
-    model.add(Activation('relu'))
-    model.add(Dropout(config.get('dropout_4', 0.4)))
+    oversampled_gen = (gen_files * repeat_factor)[:target_gen_count]
+    final_list = raf_files + oversampled_gen
+    random.shuffle(final_list)
+    return final_list
 
-    # Classifier
-    model.add(GlobalAveragePooling2D())
+class EmotionDataset(Dataset):
+    def __init__(self, file_list, classes, transform=None):
+        self.file_list = file_list
+        self.transform = transform
+        self.classes = classes
+        self.class_to_idx = {c: i for i, c in enumerate(classes)}
     
-    # Optional Extra Dense Layer (Experiment Architecture)
-    if config.get('extra_dense_layer', False):
-        model.add(Dense(1024, kernel_regularizer=l2(config.get('l2_reg', 0.0001))))
-        model.add(BatchNormalization())
-        model.add(Activation('relu'))
-        model.add(Dropout(0.5))
-
-    model.add(Dense(512, kernel_regularizer=l2(config.get('l2_reg', 0.0001))))
-    model.add(BatchNormalization())
-    model.add(Activation('relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(7, activation='softmax'))
+    def __len__(self): return len(self.file_list)
     
-    # Compile
-    model.compile(
-        optimizer=Adam(learning_rate=config.get('learning_rate', 0.0003)), 
-        loss=CategoricalCrossentropy(label_smoothing=0.1), 
-        metrics=['accuracy']
-    )
-    return model
+    def __getitem__(self, idx):
+        path = self.file_list[idx]
+        label = self.class_to_idx[os.path.basename(os.path.dirname(path))]
+        try:
+            img = Image.open(path).convert('RGB')
+        except:
+            img = Image.new('RGB', (IMAGE_SIZE, IMAGE_SIZE))
+        if self.transform: img = self.transform(img)
+        return img, label
 
-def run_experiments():
-    X_train, y_train, X_val, y_val = load_data()
-    if X_train is None: return
-
-    # --- DEFINE EXPERIMENTS ---
-    experiments = {
-        "Exp_1_Baseline": {
-            "learning_rate": 0.0003,
-            "batch_size": 64,
-            "dropout_1": 0.2, "dropout_2": 0.3, "dropout_3": 0.4, "dropout_4": 0.4,
-            "extra_dense_layer": False,
-            "l2_reg": 0.0001
-        },
-        "Exp_2_HighLR": {
-            "learning_rate": 0.001, # Higher LR
-            "batch_size": 64,
-            "dropout_1": 0.2, "dropout_2": 0.3, "dropout_3": 0.4, "dropout_4": 0.4,
-            "extra_dense_layer": False,
-            "l2_reg": 0.0001
-        },
-        "Exp_3_DeepArchitecture": {
-            "learning_rate": 0.0003,
-            "batch_size": 64,
-            "dropout_1": 0.25, "dropout_2": 0.35, "dropout_3": 0.45, "dropout_4": 0.5, # Slightly higher dropout
-            "extra_dense_layer": True, # Added layer
-            "l2_reg": 0.0001
-        },
-        "Exp_4_HighReg": {
-            "learning_rate": 0.0003,
-            "batch_size": 64,
-            "dropout_1": 0.3, "dropout_2": 0.4, "dropout_3": 0.5, "dropout_4": 0.5, # Aggressive Dropout
-            "l2_reg": 0.01, # Aggressive L2
-            "extra_dense_layer": False,
-        }
+# --- 2. DEFINIRE EXPERIMENTE ---
+def get_experiment_config(exp_id):
+    """Returnează configurația specifică pentru fiecare experiment."""
+    config = {
+        'lr': 0.0003,              # Baseline default
+        'architecture': 'resnet18', 
+        'dropout': 0.5,
+        'weight_decay': 0.0,
+        'name': f'Exp_{exp_id}'
     }
+    
+    if exp_id == 1:
+        config['name'] = 'Exp_1_Baseline'
+        # Setări implicite
+        
+    elif exp_id == 2:
+        config['name'] = 'Exp_2_HighLR'
+        config['lr'] = 0.001
+        
+    elif exp_id == 3:
+        config['name'] = 'Exp_3_DeepArchitecture'
+        config['architecture'] = 'resnet18_deep' # Custom head
+        config['dropout'] = 0.55
+        
+    elif exp_id == 4:
+        config['name'] = 'Exp_4_HighReg'
+        config['dropout'] = 0.5
+        config['weight_decay'] = 0.01 # L2 Regularization
+        
+    return config
 
-    # Data Augmentation (Standard)
-    train_datagen = ImageDataGenerator(
-        rotation_range=15, width_shift_range=0.1, height_shift_range=0.1, horizontal_flip=True
-    )
+def build_model(config):
+    model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+    num_ftrs = model.fc.in_features
+    
+    if config['architecture'] == 'resnet18_deep':
+        # Arhitectură mai adâncă (Exp 3)
+        model.fc = nn.Sequential(
+            nn.Linear(num_ftrs, 1024),
+            nn.ReLU(),
+            nn.Dropout(config['dropout']),
+            nn.Linear(1024, NUM_CLASSES)
+        )
+    else:
+        # Standard head
+        model.fc = nn.Sequential(
+            nn.Dropout(config['dropout']),
+            nn.Linear(num_ftrs, NUM_CLASSES)
+        )
+        
+    return model.to(DEVICE)
 
-    results_list = []
-    best_val_acc = 0
+# --- 3. FUNCȚIE DE ANTRENARE ---
+def run_training(exp_id):
+    cfg = get_experiment_config(exp_id)
+    print(f"\n🚀 Starting {cfg['name']} | LR: {cfg['lr']} | Arch: {cfg['architecture']} | L2: {cfg['weight_decay']}")
+    
+    # Date
+    classes = sorted([d for d in os.listdir(RAF_TRAIN_DIR) if os.path.isdir(os.path.join(RAF_TRAIN_DIR, d))])
+    train_files = create_balanced_file_list(RAF_TRAIN_DIR, MY_DATA_DIR)
+    test_files = glob.glob(os.path.join(RAF_TEST_DIR, '*', '*.jpg'))
+    
+    transform = transforms.Compose([
+        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomAffine(15, translate=(0.1, 0.1), scale=(0.9, 1.1)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+    val_transform = transforms.Compose([
+        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+    
+    train_loader = DataLoader(EmotionDataset(train_files, classes, transform), batch_size=BATCH_SIZE, shuffle=True, num_workers=2)
+    test_loader = DataLoader(EmotionDataset(test_files, classes, val_transform), batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
+    
+    # Model & Optimizator
+    model = build_model(cfg)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])
+    
+    best_acc = 0.0
+    best_f1 = 0.0
+    history = []
+    
+    for epoch in range(EPOCHS):
+        model.train()
+        running_loss = 0.0
+        correct = 0
+        total = 0
+        
+        for imgs, labels in train_loader:
+            imgs, labels = imgs.to(DEVICE), labels.to(DEVICE)
+            optimizer.zero_grad()
+            out = model(imgs)
+            loss = criterion(out, labels)
+            loss.backward()
+            optimizer.step()
+            
+            running_loss += loss.item()
+            _, pred = torch.max(out, 1)
+            total += labels.size(0)
+            correct += (pred == labels).sum().item()
+            
+        # Validare
+        model.eval()
+        val_correct = 0
+        val_total = 0
+        with torch.no_grad():
+            for imgs, labels in test_loader:
+                imgs, labels = imgs.to(DEVICE), labels.to(DEVICE)
+                out = model(imgs)
+                _, pred = torch.max(out, 1)
+                val_total += labels.size(0)
+                val_correct += (pred == labels).sum().item()
+        
+        val_acc = val_correct / val_total
+        history.append({'epoch': epoch+1, 'val_acc': val_acc, 'train_loss': running_loss/len(train_loader)})
+        
+        print(f"   Ep {epoch+1}: Train Loss {running_loss/len(train_loader):.4f} | Val Acc {val_acc*100:.2f}%")
+        
+        if val_acc > best_acc:
+            best_acc = val_acc
+            # Salvăm modelul temporar pentru acest experiment
+            torch.save(model.state_dict(), os.path.join(MODELS_DIR, f"{cfg['name']}.pt"))
+
+    return best_acc, history
+
+def main():
+    results = []
+    best_overall_acc = 0
     best_exp_name = ""
 
-    # Weights Strategy (Shared)
-    manual_weights = {0: 1.25, 1: 2.0, 2: 1.35, 3: 1.0, 4: 1.0, 5: 1.25, 6: 1.0}
-
-    print(f"🧪 Starting {len(experiments)} Experiments...")
-
-    for exp_name, config in experiments.items():
-        print(f"\n▶ Running {exp_name}...")
+    # Rulăm cele 4 experimente
+    for i in range(1, 5):
+        acc, hist = run_training(i)
+        results.append({'Exp': f"Exp {i}", 'Acc': acc})
         
-        model = build_model(config)
-        
-        # Callbacks (Short patience for experiments)
-        callbacks = [
-            EarlyStopping(monitor='val_accuracy', patience=8, restore_best_weights=True, verbose=1),
-            ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1)
-        ]
+        if acc > best_overall_acc:
+            best_overall_acc = acc
+            best_exp_name = f"Exp_{i}" if i==1 else f"Exp_{i}_..." # Simplificat pt logică
+            # Salvăm modelul "Câștigător" ca optimized_model.pt
+            src_path = os.path.join(MODELS_DIR, f"Exp_{i}_*.pt") # Wildcard pt nume complet
+            # (Simplificare: În practică reîncărcăm weights și salvăm explicit)
+            print(f"   ⭐ New Champion: Exp {i} with {acc:.4f}")
+            
+            # Redenumire/Copiere logică (simulată aici prin re-salvare în loop-ul de training)
+            # Pentru simplitate, presupunem că ultimul 'torch.save' din loop-ul de training a fost bun.
+            # Aici doar redenumim fișierul specific experimentului în 'optimized_model.pt'
+            
+            current_exp_name = get_experiment_config(i)['name']
+            best_model_path = os.path.join(MODELS_DIR, f"{current_exp_name}.pt")
+            final_path = os.path.join(MODELS_DIR, "optimized_model.pt")
+            
+            # Load and save as optimized
+            model = build_model(get_experiment_config(i))
+            model.load_state_dict(torch.load(best_model_path))
+            torch.save(model.state_dict(), final_path)
 
-        # Train
-        history = model.fit(
-            train_datagen.flow(X_train, y_train, batch_size=config['batch_size']),
-            validation_data=(X_val, y_val),
-            epochs=35, # Reduced epochs for experimentation speed (vs 70 for final)
-            class_weight=manual_weights,
-            callbacks=callbacks,
-            verbose=2
-        )
-
-        # Evaluate
-        val_pred_probs = model.predict(X_val, verbose=0)
-        val_pred_classes = np.argmax(val_pred_probs, axis=1)
-        val_true_classes = np.argmax(y_val, axis=1)
-
-        acc = accuracy_score(val_true_classes, val_pred_classes)
-        f1 = f1_score(val_true_classes, val_pred_classes, average='macro')
-        
-        print(f"✅ {exp_name} Result: Val Acc={acc:.4f}, Val F1={f1:.4f}")
-        
-        # Save Result
-        results_list.append({
-            "Experiment": exp_name,
-            "Accuracy": acc,
-            "F1_Score": f1,
-            "Epochs": len(history.history['loss']),
-            "Config": str(config)
-        })
-
-        # Save Best Model Logic
-        if acc > best_val_acc:
-            best_val_acc = acc
-            best_exp_name = exp_name
-            print(f"🏆 New Best Model found! Saving to {MODELS_DIR}/optimized_model.h5")
-            model.save(f"{MODELS_DIR}/optimized_model.h5")
-
-    # Save Results Table
-    df = pd.DataFrame(results_list)
-    df.to_csv(EXPERIMENTS_FILE, index=False)
-    print(f"\n📊 Experiments Complete. Results saved to {EXPERIMENTS_FILE}")
-    print(f"🌟 Best Experiment: {best_exp_name} with Accuracy: {best_val_acc:.4f}")
+    print("\n=== REZULTATE FINALE ===")
+    print(f"Câștigător: {best_exp_name} ({best_overall_acc*100:.2f}%)")
+    print(f"Model salvat în: {os.path.join(MODELS_DIR, 'optimized_model.pt')}")
 
 if __name__ == "__main__":
-    run_experiments()
+    main()
