@@ -16,7 +16,7 @@ BASE_DIR = "data/processed"
 MODELS_DIR = "models"
 RESULTS_DIR = "results"
 BATCH_SIZE = 64
-EPOCHS = 70 
+EPOCHS = 100
 
 if not os.path.exists(MODELS_DIR): os.makedirs(MODELS_DIR)
 if not os.path.exists(RESULTS_DIR): os.makedirs(RESULTS_DIR)

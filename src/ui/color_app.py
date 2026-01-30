@@ -12,7 +12,7 @@ from scipy import signal
 import os
 
 # --- CONFIGURATION ---
-MODEL_PATH = 'models/best_emotion_model.pth'
+MODEL_PATH = 'best_emotion_model.pth'
 REPORTS_DIR = "reports"
 IMAGE_SIZE = 224
 CLASSES = ['angry', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
