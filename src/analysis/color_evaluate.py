@@ -12,21 +12,21 @@ import numpy as np
 
 # --- CONFIGURATION ---
 BATCH_SIZE = 32
-IMAGE_SIZE = 224
+IMAGE_SIZE = 100
 NUM_CLASSES = 7
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Paths
 RAF_TRAIN_DIR = 'data/raw/train' # Needed just to get class names
 RAF_TEST_DIR = 'data/raw/test'
-MODEL_PATH = 'models/best_emotion_model.pth'
+MODEL_PATH = 'models/emotion_model_epoch_50.pt'
 
 # --- 1. UTILS & DATASET (Same as training) ---
 class SimpleEmotionDataset(Dataset):
     def __init__(self, root_dir, transform=None):
         self.transform = transform
         # Detect classes just like training script to ensure index consistency
-        self.classes = sorted([d for d in os.listdir(RAF_TRAIN_DIR) if os.path.isdir(os.path.join(RAF_TRAIN_DIR, d))])
+        self.classes = sorted([d for d in os.listdir(RAF_TEST_DIR) if os.path.isdir(os.path.join(RAF_TEST_DIR, d))])
         self.class_to_idx = {cls_name: i for i, cls_name in enumerate(self.classes)}
         
         # Get all image files in test dir
@@ -57,6 +57,48 @@ test_transforms = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
+# --- MODEL ARCHITECTURE ---
+class SimpleEmotionCNN(nn.Module):
+    def __init__(self, num_classes=7):
+        super(SimpleEmotionCNN, self).__init__()
+
+        # Block 1: 3 -> 32 channels. Output size: 50x50
+        self.layer1 = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+
+        # Block 2: 32 -> 64 channels. Output size: 25x25
+        self.layer2 = nn.Sequential(
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(2,2)
+        ) 
+
+        # Block 3: 64 -> 128 channels. Output size: 12x12
+        self.layer3 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(2,2)
+        )
+
+        # Classifier
+        self.fc = nn.Linear(128 * 12 * 12, num_classes)
+
+    def forward(self, x):
+        out = self.layer1(x)
+        out = self.layer2(out)
+        out = self.layer3(out)
+
+        out = out.view(out.size(0), -1) # Flatten
+        out = self.fc(out)
+        return out
+
+
 # --- 3. MAIN EVALUATION ---
 if __name__ == "__main__":
     print(f"Running evaluation on {DEVICE}...")
@@ -68,10 +110,14 @@ if __name__ == "__main__":
     print(f"Test Set Size: {len(test_dataset)} images")
     print(f"Classes: {test_dataset.classes}")
 
-    # Load Model Structure
-    model = models.resnet18(weights=None) # No need to download weights, we are loading ours
-    num_ftrs = model.fc.in_features
-    model.fc = nn.Linear(num_ftrs, NUM_CLASSES)
+    # Load Model Structure (Resnet18)
+    # model = models.resnet18(weights=None) # No need to download weights, we are loading ours
+    # num_ftrs = model.fc.in_features
+    # model.fc = nn.Linear(num_ftrs, NUM_CLASSES)
+    
+    
+    # Load Model structure custom
+    model = SimpleEmotionCNN(num_classes=7)
     
     # Load Trained Weights
     if os.path.exists(MODEL_PATH):

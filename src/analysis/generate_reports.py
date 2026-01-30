@@ -10,17 +10,20 @@ import numpy as np
 import os
 import glob
 import random
+import pandas as pd
 
 # Config
 MODEL_PATH = 'models/optimized_model.pt'
 TEST_DIR = 'data/raw/test'
 DOCS_DIR = 'docs/results'
 SCREENSHOTS_DIR = 'docs/screenshots'
+OPTIMIZATION_DIR = 'docs/optimization'
 CLASSES = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surprised']
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 os.makedirs(DOCS_DIR, exist_ok=True)
 os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
+os.makedirs(OPTIMIZATION_DIR, exist_ok=True)
 
 # Dataset Simplu pt Test
 class SimpleDataset(Dataset):
@@ -82,8 +85,80 @@ def load_robust_model():
     model.eval()
     return model
 
+def generate_comparisons():
+    print("📊 Generare grafice comparative...")
+    exp_path = 'results/old_results/experiments_results.csv'
+    if not os.path.exists(exp_path):
+        # Încearcă calea alternativă
+        exp_path = 'results/experiments_results.csv' 
+        if not os.path.exists(exp_path):
+            print(f"⚠️ Warning: {exp_path} not found. Skipping comparisons.")
+            return
+
+    df = pd.read_csv(exp_path)
+    
+    # Accuracy Comparison
+    plt.figure(figsize=(10, 6))
+    if 'Accuracy' in df.columns:
+        sns.barplot(x='Experiment', y='Accuracy', data=df, palette='viridis')
+        plt.title('Accuracy per Experiment')
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.savefig(os.path.join(OPTIMIZATION_DIR, 'accuracy_comparison.png'))
+        plt.close()
+
+    # F1 Comparison
+    plt.figure(figsize=(10, 6))
+    if 'F1_Score' in df.columns:
+        sns.barplot(x='Experiment', y='F1_Score', data=df, palette='magma')
+        plt.title('F1-Score per Experiment')
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.savefig(os.path.join(OPTIMIZATION_DIR, 'f1_comparison.png'))
+        plt.close()
+    print("✅ Grafice comparative salvate.")
+
+def generate_learning_curves():
+    print("📈 Generare curbe de învățare...")
+    hist_path = 'results/history.csv'
+    if not os.path.exists(hist_path):
+        print(f"⚠️ Warning: {hist_path} not found. Skipping learning curves.")
+        return
+
+    df = pd.read_csv(hist_path)
+    
+    plt.figure(figsize=(12, 5))
+    
+    # Accuracy
+    plt.subplot(1, 2, 1)
+    plt.plot(df['train_acc'], label='Train Accuracy')
+    plt.plot(df['val_acc'], label='Validation Accuracy')
+    plt.title('Model Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy (%)')
+    plt.legend()
+    plt.grid(True)
+    
+    # Loss
+    plt.subplot(1, 2, 2)
+    plt.plot(df['train_loss'], label='Train Loss')
+    plt.plot(df['val_loss'], label='Validation Loss')
+    plt.title('Model Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True)
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(OPTIMIZATION_DIR, 'learning_curves_best.png'))
+    plt.close()
+    print("✅ Curbe de învățare salvate.")
+
 def main():
     print("📊 Începere Generare Rapoarte...")
+    
+    generate_comparisons()
+    generate_learning_curves()
     
     # 1. Load Model
     model = load_robust_model()

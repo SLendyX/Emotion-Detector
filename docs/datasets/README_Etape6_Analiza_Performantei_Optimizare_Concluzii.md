@@ -61,12 +61,12 @@ Deși Etapa 6 încheie ciclul formal de dezvoltare, **procesul iterativ continu�
 **Înainte de a începe Etapa 6, verificați că aveți din Etapa 5:**
 
 - [x] **Model antrenat** salvat în `models/trained_model.h5` (sau `.pt`, `.lvmodel`)
-- [ ] **Metrici baseline** raportate: Accuracy ≥65%, F1-score ≥0.60
+- [x] **Metrici baseline** raportate: Accuracy ≥65%, F1-score ≥0.60
 - [ ] **Tabel hiperparametri** cu justificări completat
-- [ ] **`results/training_history.csv`** cu toate epoch-urile
-- [ ] **UI funcțional** care încarcă modelul antrenat și face inferență reală
-- [ ] **Screenshot inferență** în `docs/screenshots/inference_real.png`
-- [ ] **State Machine** implementat conform definiției din Etapa 4
+- [x] **`results/training_history.csv`** cu toate epoch-urile
+- [x] **UI funcțional** care încarcă modelul antrenat și face inferență reală
+- [x] **Screenshot inferență** în `docs/screenshots/inference_real.png`
+- [x] **State Machine** implementat conform definiției din Etapa 4
 
 **Dacă oricare din punctele de mai sus lipsește → reveniți la Etapa 5 înainte de a continua.**
 
@@ -96,24 +96,20 @@ Documentați **minimum 4 experimente** cu variații sistematice:
 
 | **Exp#** | **Nume Experiment** | **Modificare față de Baseline** | **Accuracy** | **F1-score** | **Observații** |
 |----------|-------------------|------------------------------------------|--------------|--------------|----------------|
-| Exp 1 | Exp_1_Baseline | Configurația originală (Etapa 5) | - | - | Referință (LR=0.0003, Dropout Progressive) |
-| Exp 2 | Exp_2_HighLR | Learning Rate 0.0003 → 0.001 | - | - | Testare convergență rapidă (Adam default) |
-| Exp 3 | Exp_3_DeepArchitecture | +1 Dense Layer (1024), Dropout crescut (+0.05) | - | - | Creșterea capacității de abstractizare |
-| Exp 4 | Exp_4_HighReg | Dropout Aggressive (0.3-0.5), L2 0.01 | - | - | Testare forțare generalizare extremă |
+| Exp 1 | Exp_1_Baseline | Baseline | 0.7324 | 0.7313 | Referință (LR=0.0003, Dropout Progressive, arch=resnet18) |
+| Exp 2 | Exp_2_HighLR | Learning Rate 0.0003 → 0.001 | 0.672 | 0.6703 | Testare convergență rapidă |
+| Exp 3 | Exp_3_DeepArchitecture | Folosit arhitectura resnet18_deep cu Dropout=0.55 | 0.726 | 0.7261 | LR=0.003 |
+| Exp 4 | Exp_4_HighReg | Dropout Aggressive (0.5), L2 0.01 | 0.6402 | 0.6413 | Testare forțare generalizare extremă |
 
 *(Notă: Rulați `src/neural_network/run_experiments.py` pentru a completa valorile exacte în acest tabel)*
 
 **Justificare alegere configurație finală:**
 ```
-Am ales [Nume Experiment Câștigător] ca model final pentru că:
+Am ales Exp_1_Baseline ca model final pentru că:
 1. A obținut cea mai bună Acuratețe și F1-score pe setul de validare.
 2. Balansul între complexitate și performanță este optim.
-3. [Alte observații din rulare]
-``` 
-   calibrat la nivelul real de zgomot din mediul de producție: SNR ≈ 20dB)
-3. Timpul de antrenare suplimentar (25 min) este acceptabil pentru beneficiul obținut
-4. Testare pe date noi arată generalizare bună (nu overfitting pe augmentări)
-```
+3. Testare pe date noi arată generalizare bună (nu overfitting pe augmentări)
+
 
 **Resurse învățare rapidă - Optimizare:**
 - Hyperparameter Tuning: https://keras.io/guides/keras_tuner/ 
@@ -130,21 +126,19 @@ Am ales [Nume Experiment Câștigător] ca model final pentru că:
 
 | **Componenta** | **Stare Etapa 5** | **Modificare Etapa 6** | **Justificare** |
 |----------------|-------------------|------------------------|-----------------|
-| **Model încărcat** | `trained_model.h5` | `optimized_model.h5` | +9% accuracy, -5% FN |
-| **Threshold alertă (State Machine)** | 0.5 (default) | 0.35 (clasa 'defect') | Minimizare FN în context industrial |
-| **Stare nouă State Machine** | N/A | `CONFIDENCE_CHECK` | Filtrare predicții cu confidence <0.6 |
-| **Latență target** | 100ms | 50ms (ONNX export) | Cerință timp real producție |
-| **UI - afișare confidence** | Da/Nu simplu | Bară progres + valoare % | Feedback operator îmbunătățit |
-| **Logging** | Doar predicție | Predicție + confidence + timestamp | Audit trail complet |
-| **Web Service response** | JSON minimal | JSON extins + metadata | Integrare API extern |
+| **Model încărcat** | `best_emotion_model.keras` | `optimized_model.pt` | +10% accuracy, +15% FN |
+| **Parametrii imagine** | 48x48 grayscale | 224x224 color | acuratete ridicata, echilibrarea emotiilor (ex: dezgust, frica si tristete aveau multe fals pozitive) |
+| **Arhitectura modelului | arhitectura neatrenata cu 4 layere | arhitectura resnet18 optimizata pe detectarea imaginilor | depasirea pragului de 65% accuracy si posibilitatea respectarii regulii de 40-60 (40% date proprii) |
+| **UI - afișare confidence** | Emotie simpla | Bară progres + valoare % | Feedback operator îmbunătățit |
+| **Logging** | Doar predicție | Predicție + confidence in raportul generat | Audit trail complet |
 
 **Completați pentru proiectul vostru:**
 ```markdown
 ### Modificări concrete aduse în Etapa 6:
 
-1. **Model înlocuit:** `models/trained_model.h5` → `models/optimized_model.h5`
-   - Îmbunătățire: F1-score stabilizat la ~0.65 (vs 0.42 initial), Reducerea drastică a confuziilor "Happy" vs "Neutral".
-   - Motivație: Modelul optimizat folosește o arhitectură mai robustă (Dropout progresiv), regularizare L2 pentru generalizare și a fost antrenat pe un set de date extins (User + FER + KDEF).
+1. **Model înlocuit:** `models/best_emotion_model.keras` → `optimized_model.pt`
+   - Îmbunătățire: F1-score stabilizat la ~0.75 (vs 0.60 initial), Reducerea drastică a confuziilor "Sad" vs "Neutral", "Fear" vs "Neutral", si cresterea increderii in clasa "Dezgust".
+   - Motivație: Modelul optimizat folosește o arhitectură mai robustă, care intelge marginile unui obiect (resnet18), regularizare L2 pentru generalizare și a fost antrenat pe un set de date cu rezolutie mai mare (balanced-raf-db).
 
 2. **State Machine actualizat:**
    - Stări clar definite: `IDLE` → `ACQUISITION` → `DETECTION` → `PROCESSING` → `DISPLAY`
@@ -152,13 +146,12 @@ Am ales [Nume Experiment Câștigător] ca model final pentru că:
    - Refactoring: Separarea clară a logicii de UI (desenare) de logica de inferență.
 
 3. **Dataset Extins & Calibrat:**
-   - **Adăugare KDEF:** Am integrat subsetul KDEF (doar fețele decupate) pentru a oferi modelului exemple de înaltă calitate, balansând zgomotul din FER2013.
-   - **Testare pe CK+ Clean:** Am recalibrat procesul de evaluare pentru a folosi setul `CK+` balansat (max 80 samples/clasă), eliminând bias-ul cauzat de clasa "Neutral" dominantă.
+   - **Adăugare balanced-Raf-db:** Am integrat setul raf-db pentru a oferi modelului exemple de înaltă calitate.
 
 4. **UI îmbunătățit:**
    - Încărcare automată a modelului optimizat.
    - Afișare clară a stării curente în consolă și pe ecran.
-   - Screenshot inferență: `docs/screenshots/inference_real.png`
+   - Screenshot inferență: `docs/screenshots/error_examples.png`
 ```
 
 ### Diagrama State Machine Actualizată (dacă s-au făcut modificări)
@@ -175,13 +168,14 @@ DETECTION (Haar Cascade - Detectare Fețe)
   └─ [Niciuna] → DISPLAY (Afișare cadru gol)
        ↑
 PROCESSING (Inferență RN + Monitorizare Puls)
-  │  • Preprocesare (Grayscale, Resize 48x48)
+  │  • Preprocesare (Grayscale, Resize 224x224)
   │  • Inferență Model (Softmax → 7 Emoții)
   │  • Calcul Puls (rPPG pe canalul Verde)
   │  • Logică Înregistrare (Dacă REC=True)
   ↓
 DISPLAY (Randare Grafică & Feedback)
   • Desenare Bounding Box + Label Emoție
+  • Desenare procentajele celor 7 clase de emotie
   • Afișare Puls + Stare "REC"
   • Revenire la ACQUISITION
 ```
@@ -195,27 +189,27 @@ Această structură asigură că inferența costisitoare (RN) se execută **doar
 
 ### 2.1 Confusion Matrix și Interpretare
 
-**Locație:** `docs/confusion_matrix_optimized.png`
+**Locație:** `docs/results/confusion_matrix_optimized.png`
 
 **Analiză obligatorie (completați):**
 
 ```markdown
 ### Interpretare Confusion Matrix:
 
-**Clasa cu cea mai bună performanță:** **Happy (Fericire)**
-- Precision: ~70%
-- Recall: ~98% (aproape perfect)
-- Explicație: Zâmbetul este o trăsătură geometrică foarte distinctă (colțurile gurii ridicate, ochi îngustați), ușor de captat de filtrele convoluționale, spre deosebire de micro-expresiile subtile.
+**Clasa cu cea mai bună performanță:** **Fear (Frica)**
+- Precision: ~88%
+- Recall: ~90% (aproape perfect)
+- Explicație: Posibil ca frica din acest set de date sa fi fost exprimata mai exagerat si astfel trasaturile caracteristice cum sunt, ochii deschisi exagerat si colturile gurii incordata in lateral au facut ca modelul sa inteleaga destul de bine aceasta emotie
 
-**Clasa cu cea mai slabă performanță:** **Fear (Frica)**
-- Precision: Scăzută
-- Recall: Scăzut
-- Explicație: Confuzia majoră este cu **Sadness** și **Surprise**. Frica împarte trăsături vizuale cu Surpriza (ochii larg deschiși) și cu Tristețea (sprâncene tensionate), fiind greu de distins pe imagini de rezoluție mică (48x48) fără context temporal.
+**Clasa cu cea mai slabă performanță:** **Disgust (Dezgust)**
+- Precision: 58%
+- Recall: 79%
+- Explicație: Poate fi confundat foarte usor cu furie sau tristete precum reiese din docs/screenshots/error_exammples_grid.png
 
 **Confuzii principale:**
-1. **Fear confundat cu Sadness:**
-   - Cauză: Ambele implică o "cădere" a trăsăturilor sau tensiune în zona ochilor. Pe imaginile grayscale statice, diferența dintre ochi "speriați" și ochi "tristi" este uneori imperceptibilă pentru model.
-   - Impact: Sistemul poate interpreta o situație de panică drept una de depresie/pasivitate.
+1. **Disgust confundat cu Sadness:**
+   - Cauză: Ambele implică o "cădere" a trăsăturilor sau tensiune în zona ochilor. Pe imaginile grayscale statice, diferența dintre ochi "desgustati" și ochi "tristi" este uneori imperceptibilă pentru model.
+   - Impact: Sistemul poate interpreta o situație de dezgust drept una de depresie/pasivitate.
 
 2. **Neutral confundat cu Sadness:**
    - Cauză: "Resting Face" (fața relaxată) a multor subiecți are colțurile gurii ușor lăsate, ceea ce rețeaua învață ca fiind semn de tristețe.
@@ -224,18 +218,18 @@ Această structură asigură că inferența costisitoare (RN) se execută **doar
 
 ### 2.2 Analiza Detaliată a 5 Exemple Greșite
 
-*(Vezi imaginile generate în `docs/screenshots/error_example_X...png`)*
+*(Vezi imaginile generate în `docs/screenshots/error_examples_grid.png`)*
 
 | **Index** | **True Label** | **Predicted** | **Cauză probabilă** | **Soluție propusă** |
 |-----------|----------------|---------------|---------------------|---------------------|
-| Ex 1 | **Surprise** | **Fear** | Deschidere similară a gurii; modelul nu a distins lipsa tensiunii din sprâncene specifică fricii. | Antrenare pe secvențe video (LSTM) pentru context temporal. |
-| Ex 2 | **Sadness** | **Neutral** | Intensitate scăzută a emoției; subiectul are o expresie foarte subtilă. | Augmentare cu exemple de "micros-expresii" sau label smoothing. |
-| Ex 3 | **Fear** | **Sadness** | Ochii nu sunt suficient de vizibili (umbre/rezoluție), trăsătura dominantă rămasă fiind gura lăsată. | Preprocesare cu Histogram Equalization pentru contrast mai bun. |
-| Ex 4 | **Angry** | **Disgust** | Ambele implică încrețirea nasului/gurii; diferența e subtilă la rezoluție mică. | Creșterea rezoluției de input la 64x64 sau 96x96. |
-| Ex 5 | **Neutral** | **Sadness** | Subiectul are o fizionomie naturală cu colțurile gurii orientate în jos ("Resting Bitch Face"). | Adăugarea mai multor exemple de "Neutral" variat în training. |
+| Ex 1 | **Neutral** | **Happy** | Colturile gurii sunt usor ridicate in sus si pot fi foarte usor incurcate cu fericirea | Rdiciarea senstivitatii pentru neutru |
+| Ex 2 | **Disgust** | **Neutral** | Nu este o fata obisnuita pentru dezgust pentru ca fata arata copmlet neutra, dar unii ar categorisio ca dezgust privirii din lateral | Indepartarea exemplului ambiguu |
+| Ex 3 | **Sad** | **Disgust** | Un exemplu clasic in care modelul incurca incretirea nasului cu emotia de dezgust | Cresterea sensivitatii pentru sad |
+| Ex 4 | **Sad** | **Disgust** | Ambele implică încrețirea nasului/gurii | Creșterea sensivitatii clasei sad |
+| Ex 5 | **Surprised** | **Neutral** | Posibil sa fi confundat ochii si sprancenele pentru o fata neutra | Adăugarea mai multor exemple de "Surprised" variat în training. |
 
 **Analiză Generală a Erorilor:**
-Majoritatea erorilor provin din **suprapunerea trăsăturilor geometrice** la rezoluția de 48x48 (Fear vs Surround, Neutral vs Sad). Modelul învață bine formele extreme (zâmbet larg), dar se chinuie la nuanțe. De asemenea, **calitatea etichetelor** din seturile publice (FER2013) este uneori discutabilă, cu imagini etichetate subiectiv.
+Majoritatea erorilor provin din **suprapunerea trăsăturilor geometrice** la rezoluția de 224x224 (Fear vs Surround, Neutral vs Sad). Modelul învață bine formele extreme (zâmbet larg), dar se chinuie la nuanțe. 
 ```
 
 ---
@@ -255,8 +249,8 @@ Descrieți strategia folosită pentru optimizare:
 1. **Arhitectură:** Testat adăugarea unui strat Dense(1024) suplimentar (Exp 3).
 2. **Regularizare:** Variat Dropout între 0.2 și 0.5; Testat L2 penalty (Exp 4).
 3. **Learning rate:** Comparat 0.0003 (Baseline) cu 0.001 (High LR) pentru viteză vs stabilitate.
-4. **Augmentări:** Augmentare agresivă pe clasele minoritare (Disgust x8) și moderată pe restul.
-5. **Dataset:** Integrarea setului KDEF Cropped pentru curățarea semnalului de antrenare.
+4. **Augmentări:** Augmentare pentru toate clasele din moment ce avem doar 300 de exemple per clasa
+5. **Dataset:** Integrarea setului balanced-raf-db.
 
 **Criteriu de selecție model final:** F1-score maxim pe setul de validare, prioritizând minimizarea erorilor pe clasele negative (Fear/Sadness).
 ```
@@ -274,14 +268,14 @@ Generați și salvați în `docs/optimization/`:
 ### Raport Final Optimizare
 
 **Model baseline (Etapa 5):**
-- Accuracy: 0.72
-- F1-score: 0.68
-- Latență: 48ms
+- Accuracy: 0.65
+- F1-score: 0.60
+- Latență: 80ms
 
 **Model optimizat (Etapa 6):**
-- Accuracy: 0.81 (+9%)
-- F1-score: 0.77 (+9%)
-- Latență: 35ms (-27%)
+- Accuracy: 0.75 (+10%)
+- F1-score: 0.75 (+15%)
+- Latență: 58ms (-X%)
 
 **Configurație finală aleasă:**
 - Arhitectură: [descrieți]
@@ -317,7 +311,7 @@ Generați și salvați în `docs/optimization/`:
 
 Salvați în `docs/results/`:
 
-- [ ] `confusion_matrix_optimized.png` - Confusion matrix model final
+- [x] `confusion_matrix_optimized.png` - Confusion matrix model final
 - [ ] `learning_curves_final.png` - Loss și accuracy vs. epochs
 - [ ] `metrics_evolution.png` - Evoluție metrici Etapa 4 → 5 → 6
 - [ ] `example_predictions.png` - Grid cu 9+ exemple (correct + greșite)

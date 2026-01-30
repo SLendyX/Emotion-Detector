@@ -2,14 +2,14 @@ import os
 import glob
 import random
 import math
-import csv
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, models
 from PIL import Image
-import copy
+from sklearn.metrics import f1_score
+import numpy as np
 
 # --- CONFIGURARE GENERALĂ ---
 BATCH_SIZE = 32
@@ -29,12 +29,11 @@ MY_DATA_DIR = 'data/generated'
 os.makedirs(RESULTS_DIR, exist_ok=True)
 os.makedirs(MODELS_DIR, exist_ok=True)
 
-# --- 1. DATASET & BALANCING (Reutilizat) ---
+# --- 1. DATASET & BALANCING ---
 def create_balanced_file_list(raf_dir, my_data_dir):
     raf_files = glob.glob(os.path.join(raf_dir, '*', '*.jpg')) + glob.glob(os.path.join(raf_dir, '*', '*.png'))
     gen_files = glob.glob(os.path.join(my_data_dir, '*', '*.jpg')) + glob.glob(os.path.join(my_data_dir, '*', '*.png'))
     
-    # Logică balansare 40%
     target_total = len(raf_files) / 0.60
     target_gen_count = int(target_total * 0.40)
     repeat_factor = math.ceil(target_gen_count / max(1, len(gen_files)))
@@ -63,11 +62,10 @@ class EmotionDataset(Dataset):
         if self.transform: img = self.transform(img)
         return img, label
 
-# --- 2. DEFINIRE EXPERIMENTE ---
+# --- 2. CONFIGURARE EXPERIMENTE ---
 def get_experiment_config(exp_id):
-    """Returnează configurația specifică pentru fiecare experiment."""
     config = {
-        'lr': 0.0003,              # Baseline default
+        'lr': 0.0003,
         'architecture': 'resnet18', 
         'dropout': 0.5,
         'weight_decay': 0.0,
@@ -76,21 +74,17 @@ def get_experiment_config(exp_id):
     
     if exp_id == 1:
         config['name'] = 'Exp_1_Baseline'
-        # Setări implicite
-        
     elif exp_id == 2:
         config['name'] = 'Exp_2_HighLR'
         config['lr'] = 0.001
-        
     elif exp_id == 3:
         config['name'] = 'Exp_3_DeepArchitecture'
-        config['architecture'] = 'resnet18_deep' # Custom head
+        config['architecture'] = 'resnet18_deep'
         config['dropout'] = 0.55
-        
     elif exp_id == 4:
         config['name'] = 'Exp_4_HighReg'
         config['dropout'] = 0.5
-        config['weight_decay'] = 0.01 # L2 Regularization
+        config['weight_decay'] = 0.01
         
     return config
 
@@ -99,7 +93,6 @@ def build_model(config):
     num_ftrs = model.fc.in_features
     
     if config['architecture'] == 'resnet18_deep':
-        # Arhitectură mai adâncă (Exp 3)
         model.fc = nn.Sequential(
             nn.Linear(num_ftrs, 1024),
             nn.ReLU(),
@@ -107,12 +100,10 @@ def build_model(config):
             nn.Linear(1024, NUM_CLASSES)
         )
     else:
-        # Standard head
         model.fc = nn.Sequential(
             nn.Dropout(config['dropout']),
             nn.Linear(num_ftrs, NUM_CLASSES)
         )
-        
     return model.to(DEVICE)
 
 # --- 3. FUNCȚIE DE ANTRENARE ---
@@ -141,21 +132,16 @@ def run_training(exp_id):
     train_loader = DataLoader(EmotionDataset(train_files, classes, transform), batch_size=BATCH_SIZE, shuffle=True, num_workers=2)
     test_loader = DataLoader(EmotionDataset(test_files, classes, val_transform), batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
     
-    # Model & Optimizator
     model = build_model(cfg)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])
     
     best_acc = 0.0
     best_f1 = 0.0
-    history = []
     
     for epoch in range(EPOCHS):
+        # Train
         model.train()
-        running_loss = 0.0
-        correct = 0
-        total = 0
-        
         for imgs, labels in train_loader:
             imgs, labels = imgs.to(DEVICE), labels.to(DEVICE)
             optimizer.zero_grad()
@@ -164,69 +150,61 @@ def run_training(exp_id):
             loss.backward()
             optimizer.step()
             
-            running_loss += loss.item()
-            _, pred = torch.max(out, 1)
-            total += labels.size(0)
-            correct += (pred == labels).sum().item()
-            
-        # Validare
+        # Validate (Full Pass for F1 Score)
         model.eval()
-        val_correct = 0
-        val_total = 0
+        all_preds = []
+        all_labels = []
         with torch.no_grad():
             for imgs, labels in test_loader:
                 imgs, labels = imgs.to(DEVICE), labels.to(DEVICE)
                 out = model(imgs)
                 _, pred = torch.max(out, 1)
-                val_total += labels.size(0)
-                val_correct += (pred == labels).sum().item()
+                all_preds.extend(pred.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
         
-        val_acc = val_correct / val_total
-        history.append({'epoch': epoch+1, 'val_acc': val_acc, 'train_loss': running_loss/len(train_loader)})
+        # Calculate Metrics
+        val_acc = np.mean(np.array(all_preds) == np.array(all_labels))
+        val_f1 = f1_score(all_labels, all_preds, average='macro')
         
-        print(f"   Ep {epoch+1}: Train Loss {running_loss/len(train_loader):.4f} | Val Acc {val_acc*100:.2f}%")
+        print(f"   Ep {epoch+1}: Acc {val_acc*100:.2f}% | F1 {val_f1:.4f}")
         
+        # Save best by Accuracy (but tracking F1 too)
         if val_acc > best_acc:
             best_acc = val_acc
-            # Salvăm modelul temporar pentru acest experiment
+            best_f1 = val_f1
             torch.save(model.state_dict(), os.path.join(MODELS_DIR, f"{cfg['name']}.pt"))
 
-    return best_acc, history
+    return best_acc, best_f1
 
 def main():
     results = []
     best_overall_acc = 0
-    best_exp_name = ""
+    best_exp_config = None
 
-    # Rulăm cele 4 experimente
     for i in range(1, 5):
-        acc, hist = run_training(i)
-        results.append({'Exp': f"Exp {i}", 'Acc': acc})
+        acc, f1 = run_training(i)
+        results.append({'Exp': f"Exp {i}", 'Acc': acc, 'F1': f1})
         
         if acc > best_overall_acc:
             best_overall_acc = acc
-            best_exp_name = f"Exp_{i}" if i==1 else f"Exp_{i}_..." # Simplificat pt logică
-            # Salvăm modelul "Câștigător" ca optimized_model.pt
-            src_path = os.path.join(MODELS_DIR, f"Exp_{i}_*.pt") # Wildcard pt nume complet
-            # (Simplificare: În practică reîncărcăm weights și salvăm explicit)
-            print(f"   ⭐ New Champion: Exp {i} with {acc:.4f}")
+            best_exp_config = get_experiment_config(i)
             
-            # Redenumire/Copiere logică (simulată aici prin re-salvare în loop-ul de training)
-            # Pentru simplitate, presupunem că ultimul 'torch.save' din loop-ul de training a fost bun.
-            # Aici doar redenumim fișierul specific experimentului în 'optimized_model.pt'
+            # Save as optimized immediately
+            src_path = os.path.join(MODELS_DIR, f"{best_exp_config['name']}.pt")
+            dst_path = os.path.join(MODELS_DIR, "optimized_model.pt")
             
-            current_exp_name = get_experiment_config(i)['name']
-            best_model_path = os.path.join(MODELS_DIR, f"{current_exp_name}.pt")
-            final_path = os.path.join(MODELS_DIR, "optimized_model.pt")
-            
-            # Load and save as optimized
-            model = build_model(get_experiment_config(i))
-            model.load_state_dict(torch.load(best_model_path))
-            torch.save(model.state_dict(), final_path)
+            # Re-load and save to ensure consistency
+            model = build_model(best_exp_config)
+            model.load_state_dict(torch.load(src_path))
+            torch.save(model.state_dict(), dst_path)
 
-    print("\n=== REZULTATE FINALE ===")
-    print(f"Câștigător: {best_exp_name} ({best_overall_acc*100:.2f}%)")
-    print(f"Model salvat în: {os.path.join(MODELS_DIR, 'optimized_model.pt')}")
+    print("\n=== REZULTATE FINALE PENTRU TABEL ===")
+    print(f"{'Exp':<10} | {'Acc':<10} | {'F1-Score':<10}")
+    print("-" * 35)
+    for res in results:
+        print(f"{res['Exp']:<10} | {res['Acc']*100:.2f}%     | {res['F1']:.4f}")
+    
+    print(f"\nCâștigător salvat ca 'optimized_model.pt': {best_exp_config['name']}")
 
 if __name__ == "__main__":
     main()
