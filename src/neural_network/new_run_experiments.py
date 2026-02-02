@@ -182,7 +182,7 @@ def run_experiment(config, train_loader, test_loader):
             if test_acc > best_test_acc:
                 best_test_acc = test_acc
                 best_test_f1 = test_f1
-                torch.save(model.state_dict(), f"models/{config['name']}_best.pt")
+                torch.save(model.state_dict(), f"models/experiments/{config['name']}_best.pt")
 
     return best_test_acc, best_test_f1
 
@@ -250,7 +250,7 @@ def main():
     df = df.sort_values(by="Best Acc (%)", ascending=False)
     print(df.to_string(index=False))
     
-    df.to_csv("experiment_results_f1.csv", index=False)
+    df.to_csv("docs/experiments/experiment_results_f1.csv", index=False)
 
 if __name__ == "__main__":
     main()

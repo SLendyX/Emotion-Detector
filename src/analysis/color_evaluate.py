@@ -163,7 +163,7 @@ if __name__ == "__main__":
     plt.title('Confusion Matrix')
     
     # Save the plot
-    save_path = 'docs/confusion_matrix.png'
+    save_path = 'docs/grafice/confusion_matrix.png'
     plt.savefig(save_path)
     print(f"\nConfusion Matrix saved to {save_path}")
     print("You can view the image to see which emotions are being confused.")

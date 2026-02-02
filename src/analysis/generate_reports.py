@@ -135,10 +135,10 @@ def load_robust_model():
 
 def generate_comparisons():
     print("📊 Generare grafice comparative...")
-    exp_path = 'results/old_results/experiments_results.csv'
+    exp_path = 'docs/results/old_results/experiments_results.csv'
     if not os.path.exists(exp_path):
         # Încearcă calea alternativă
-        exp_path = 'results/experiments_results.csv' 
+        exp_path = 'docs/results/experiments_results.csv' 
         if not os.path.exists(exp_path):
             print(f"⚠️ Warning: {exp_path} not found. Skipping comparisons.")
             return
@@ -168,7 +168,7 @@ def generate_comparisons():
 
 def generate_learning_curves():
     print("📈 Generare curbe de învățare...")
-    hist_path = 'results/history.csv'
+    hist_path = 'docs/results/history.csv'
     if not os.path.exists(hist_path):
         print(f"⚠️ Warning: {hist_path} not found. Skipping learning curves.")
         return
@@ -262,7 +262,7 @@ def main():
     plt.title(f'Confusion Matrix (Acc={acc:.2f})')
     plt.ylabel('True Label')
     plt.xlabel('Predicted Label')
-    plt.savefig(os.path.join(DOCS_DIR, 'confusion_matrix_optimized.png'))
+    plt.savefig(os.path.join(DOCS_DIR, 'optimization/confusion_matrix_optimized.png'))
     plt.close()
     
     # 5. Salvare 5 Exemple Greșite
@@ -279,7 +279,7 @@ def main():
             axes[i].axis('off')
             
         plt.tight_layout()
-        plt.savefig(os.path.join(SCREENSHOTS_DIR, 'error_examples_grid.png'))
+        plt.savefig(os.path.join(DOCS_DIR, 'results/screenshots/error_examples_grid.png'))
         plt.close()
     else:
         print("   Felicitări! Nicio eroare găsită.")

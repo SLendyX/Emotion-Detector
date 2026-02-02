@@ -278,7 +278,7 @@ def main():
         
         # Save Checkpoint
         if (epoch+1) % 10 == 0:
-            torch.save(model.state_dict(), f"models/emotion_model_epoch_{epoch+1}.pt")
+            torch.save(model.state_dict(), f"models/latest_checkpoints/emotion_model_epoch_{epoch+1}.pt")
             
 
     # --- PLOTTING ---
@@ -303,7 +303,7 @@ def main():
 
     # plt.show()
     # Save the plot too
-    plt.savefig('training_curves.png')
+    plt.savefig('docs/grafice/training_curves.png')
 
 if __name__ == "__main__":
     main()
