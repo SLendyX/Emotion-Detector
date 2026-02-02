@@ -13,7 +13,7 @@ import random
 import pandas as pd
 
 # Config
-MODEL_PATH = 'models/optimized_model.pt'
+MODEL_PATH = 'models/emotion_model_epoch_50.pt'
 TEST_DIR = 'data/raw/test'
 DOCS_DIR = 'docs/results'
 SCREENSHOTS_DIR = 'docs/screenshots'
@@ -51,35 +51,83 @@ class SimpleDataset(Dataset):
         if self.transform: img = self.transform(img)
         return img, label, path
 
+class SimpleEmotionCNN(nn.Module):
+    def __init__(self, num_classes=7):
+        super(SimpleEmotionCNN, self).__init__()
+
+        # Block 1: 3 -> 32 channels. Output size: 50x50
+        self.layer1 = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+
+        # Block 2: 32 -> 64 channels. Output size: 25x25
+        self.layer2 = nn.Sequential(
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(2,2)
+        ) 
+
+        # Block 3: 64 -> 128 channels. Output size: 12x12
+        self.layer3 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(2,2)
+        )
+
+        # Classifier
+        self.fc = nn.Linear(128 * 12 * 12, num_classes)
+
+    def forward(self, x):
+        out = self.layer1(x)
+        out = self.layer2(out)
+        out = self.layer3(out)
+
+        out = out.view(out.size(0), -1) # Flatten
+        out = self.fc(out)
+        return out
+
 def load_robust_model():
     print(f"🔄 Loading Model from {MODEL_PATH}...")
-    model = models.resnet18(weights=None)
+    # model = models.resnet18(weights=None)
+    model = SimpleEmotionCNN(num_classes=7)
     
     # 1. Încercăm arhitectura standard (Sequential: Dropout -> Linear)
     # Asta corespunde experimentelor Exp 1, 2, 4 din run_experiments.py
-    try:
-        model.fc = nn.Sequential(
-            nn.Dropout(0.5),
-            nn.Linear(512, len(CLASSES))
-        )
+    # try:
+    #     model.fc = nn.Sequential(
+    #         nn.Dropout(0.5),
+    #         nn.Linear(512, len(CLASSES))
+    #     )
+    #     model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
+    #     print("✅ Model loaded (Standard Architecture)")
+    # except RuntimeError:
+    #     # 2. Încercăm arhitectura Deep (Exp 3)
+    #     try:
+    #         model.fc = nn.Sequential(
+    #             nn.Linear(512, 1024),
+    #             nn.ReLU(),
+    #             nn.Dropout(0.5),
+    #             nn.Linear(1024, len(CLASSES))
+    #         )
+    #         model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
+    #         print("✅ Model loaded (Deep Architecture)")
+    #     except RuntimeError:
+    #         # 3. Fallback la simplu Linear (dacă modelul a fost salvat diferit)
+    #         model.fc = nn.Linear(512, len(CLASSES))
+    #         model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
+    #         print("✅ Model loaded (Simple Linear)")
+    
+    if os.path.exists(MODEL_PATH):
         model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
-        print("✅ Model loaded (Standard Architecture)")
-    except RuntimeError:
-        # 2. Încercăm arhitectura Deep (Exp 3)
-        try:
-            model.fc = nn.Sequential(
-                nn.Linear(512, 1024),
-                nn.ReLU(),
-                nn.Dropout(0.5),
-                nn.Linear(1024, len(CLASSES))
-            )
-            model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
-            print("✅ Model loaded (Deep Architecture)")
-        except RuntimeError:
-            # 3. Fallback la simplu Linear (dacă modelul a fost salvat diferit)
-            model.fc = nn.Linear(512, len(CLASSES))
-            model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
-            print("✅ Model loaded (Simple Linear)")
+        print("Model weights loaded successfully.")
+    else:
+        print(f"Error: Could not find {MODEL_PATH}")
+        exit()
             
     model.to(DEVICE)
     model.eval()
@@ -165,7 +213,7 @@ def main():
 
     # 2. Inference
     transform = transforms.Compose([
-        transforms.Resize((224, 224)),
+        transforms.Resize((100, 100)),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])

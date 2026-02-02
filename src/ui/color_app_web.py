@@ -1,7 +1,7 @@
 import cv2
 import torch
 import torch.nn as nn
-from torchvision import transforms, models
+from torchvision import transforms
 from PIL import Image
 import numpy as np
 import time
@@ -10,6 +10,9 @@ from collections import deque
 import matplotlib.pyplot as plt
 from scipy import signal
 import os
+import streamlit as st
+from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
+import av
 
 # --- CONFIGURATION ---
 MODEL_PATH = 'models/emotion_model_epoch_50.pt'
@@ -21,7 +24,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # SETTINGS
 FRAME_WINDOW = 6  # Smoothing for emotions
 APPLY_GAMMA = True
-GAMMA_VALUE = 1.0 # 1.0 is neutral. Lower (0.8) darker, Higher (1.3) brighter.
+GAMMA_VALUE = 1.0  # 1.0 is neutral. Lower (0.8) darker, Higher (1.3) brighter.
 
 # FINAL SENSITIVITY TUNING
 SENSITIVITY = {
@@ -35,21 +38,21 @@ SENSITIVITY = {
 }
 
 # --- COLORS (BGR for OpenCV) ---
-# Specific Emotion Colors for Text/Bars
 EMOTION_COLORS = {
-    "angry":    (0, 0, 255),      # Red
-    "disgust":  (0, 140, 255),    # Orange
-    "fear":     (255, 0, 255),    # Magenta
-    "happy":    (0, 255, 0),      # Green
-    "neutral":  (200, 200, 200),  # Grey
-    "sad":      (255, 0, 0),      # Blue
-    "surprise": (0, 255, 255)     # Yellow
+    "angry": (0, 0, 255),      # Red
+    "disgust": (0, 140, 255),  # Orange
+    "fear": (255, 0, 255),     # Magenta
+    "happy": (0, 255, 0),      # Green
+    "neutral": (200, 200, 200),  # Grey
+    "sad": (255, 0, 0),        # Blue
+    "surprise": (0, 255, 255)  # Yellow
 }
 
 # Gamification / Zone Colors (For Face Box)
-COLOR_RELAXED = (0, 255, 0)       # Green
-COLOR_STRESSED = (0, 0, 255)      # Red
-COLOR_NEUTRAL = (255, 255, 0)     # Cyan/Teal
+COLOR_RELAXED = (0, 255, 0)    # Green
+COLOR_STRESSED = (0, 0, 255)   # Red
+COLOR_NEUTRAL = (255, 255, 0)  # Cyan/Teal
+
 
 # --- 1. HEART RATE MONITOR (rPPG) ---
 class HeartRateMonitor:
@@ -85,11 +88,13 @@ class HeartRateMonitor:
         freqs = float(self.fps) / L * np.arange(L / 2 + 1) * 60.
         
         idx = np.where((freqs > 45) & (freqs < 180))
-        if len(idx[0]) == 0: return
+        if len(idx[0]) == 0:
+            return
 
         pruned = fft[idx]
         pfreq = freqs[idx]
         self.bpm = pfreq[np.argmax(pruned)]
+
 
 class SimpleEmotionCNN(nn.Module):
     def __init__(self, num_classes=7):
@@ -108,15 +113,15 @@ class SimpleEmotionCNN(nn.Module):
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.MaxPool2d(2,2)
-        ) 
+            nn.MaxPool2d(2, 2)
+        )
 
         # Block 3: 64 -> 128 channels. Output size: 12x12
         self.layer3 = nn.Sequential(
             nn.Conv2d(64, 128, kernel_size=3, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.MaxPool2d(2,2)
+            nn.MaxPool2d(2, 2)
         )
 
         # Classifier
@@ -127,20 +132,15 @@ class SimpleEmotionCNN(nn.Module):
         out = self.layer2(out)
         out = self.layer3(out)
 
-        out = out.view(out.size(0), -1) # Flatten
+        out = out.view(out.size(0), -1)  # Flatten
         out = self.fc(out)
-        return out 
+        return out
+
 
 # --- 2. MODEL UTILS ---
+@st.cache_resource
 def load_model():
     print(f"Loading PyTorch model from {MODEL_PATH}...")
-    # model = models.resnet18(weights=None)
-    # model.fc = nn.Linear(model.fc.in_features, len(CLASSES))
-    # try:
-    #     model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
-    # except Exception as e:
-    #     print(f"Error loading model: {e}")
-    #     exit()
     model = SimpleEmotionCNN(num_classes=7)
     
     # Load Trained Weights
@@ -149,11 +149,12 @@ def load_model():
         print("Model weights loaded successfully.")
     else:
         print(f"Error: Could not find {MODEL_PATH}")
-        exit()
+        return None
     
     model = model.to(DEVICE)
     model.eval()
     return model
+
 
 preprocess = transforms.Compose([
     transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
@@ -161,10 +162,12 @@ preprocess = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
+
 def adjust_gamma(image, gamma=1.0):
     invGamma = 1.0 / gamma
     table = np.array([((i / 255.0) ** invGamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
     return cv2.LUT(image, table)
+
 
 # --- 3. REPORT GENERATOR ---
 def generate_report(session_data):
@@ -189,7 +192,7 @@ def generate_report(session_data):
     plt.subplot(2, 1, 2)
     for i, label in enumerate(CLASSES):
         c = EMOTION_COLORS[label]
-        c_mpl = (c[2]/255, c[1]/255, c[0]/255) # BGR to RGB
+        c_mpl = (c[2]/255, c[1]/255, c[0]/255)  # BGR to RGB
         if np.mean(probs[:, i]) > 0.05:
             plt.plot(times, probs[:, i] * 100, label=label.upper(), color=c_mpl, linewidth=2)
 
@@ -204,7 +207,8 @@ def generate_report(session_data):
     filename = f"{REPORTS_DIR}/Session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
     plt.savefig(filename)
     plt.close()
-    print(f"✅ Report saved to {filename}")
+    return filename
+
 
 # --- 4. UI DRAWING UTILS ---
 def draw_bar_chart(frame, probs, classes):
@@ -227,7 +231,7 @@ def draw_bar_chart(frame, probs, classes):
             color = (0, 255, 0)
         
         if label in ['fear', 'sad'] and prob > 0.20 and i != winner_idx:
-            color = (0, 255, 255) 
+            color = (0, 255, 255)
 
         cv2.putText(frame, f"{label.upper()}", (start_x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
         cv2.rectangle(frame, (start_x + 80, y - 10), (start_x + 80 + bar_width, y + 5), (50, 50, 50), -1)
@@ -235,63 +239,62 @@ def draw_bar_chart(frame, probs, classes):
         cv2.rectangle(frame, (start_x + 80, y - 10), (start_x + 80 + fill_width, y + 5), color, -1)
         cv2.putText(frame, f"{int(prob*100)}%", (start_x + 90 + bar_width, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
-# --- 5. MAIN APPLICATION ---
-def main():
-    model = load_model()
-    hr_monitor = HeartRateMonitor()
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-    cap = cv2.VideoCapture(0)
 
-    # Session State
-    is_recording = False
-    session_data = {'times': [], 'bpm': [], 'probs': []}
-    prob_buffer = deque(maxlen=FRAME_WINDOW)
+# --- 5. VIDEO PROCESSOR ---
+class EmotionVideoProcessor(VideoProcessorBase):
+    def __init__(self):
+        self.model = load_model()
+        self.hr_monitor = HeartRateMonitor()
+        self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        self.prob_buffer = deque(maxlen=FRAME_WINDOW)
+        self.current_emotion = "neutral"
+        self.current_confidence = 0
+        self.current_bpm = 0
+        self.current_zone = "Neutral"
+        self.is_recording = False
+        self.session_data = {'times': [], 'bpm': [], 'probs': []}
 
-    print("\n--- BIOMETRIC MONITOR STARTED ---")
-    print("[R] Start/Stop Recording Report")
-    print("[Q] Quit")
-
-    while True:
-        ret, frame = cap.read()
-        if not ret: break
+    def recv(self, frame):
+        img = frame.to_ndarray(format="bgr24")
         
-        frame = cv2.flip(frame, 1)
         if APPLY_GAMMA:
-            frame = adjust_gamma(frame, gamma=GAMMA_VALUE)
+            img = adjust_gamma(img, gamma=GAMMA_VALUE)
         
-        display_frame = frame.copy()
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray, 1.1, 5, minSize=(60,60))
+        display_frame = img.copy()
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        faces = self.face_cascade.detectMultiScale(gray, 1.1, 5, minSize=(60, 60))
         faces = sorted(faces, key=lambda x: x[2]*x[3], reverse=True)
         
         current_probs = np.zeros(len(CLASSES))
 
-        if len(faces) > 0:
+        if len(faces) > 0 and self.model is not None:
             (x, y, w, h) = faces[0]
             
             # 1. Heart Rate
-            bpm = hr_monitor.update(frame[y:y+h, x:x+w])
+            bpm = self.hr_monitor.update(img[y:y+h, x:x+w])
+            self.current_bpm = bpm
 
             # 2. Emotion Inference
             try:
-                face_roi = frame[y:y+h, x:x+w]
+                face_roi = img[y:y+h, x:x+w]
                 rgb = cv2.cvtColor(face_roi, cv2.COLOR_BGR2RGB)
                 tensor = preprocess(Image.fromarray(rgb)).unsqueeze(0).to(DEVICE)
                 
                 with torch.no_grad():
-                    out = model(tensor)
+                    out = self.model(tensor)
                     probs = torch.nn.functional.softmax(out[0], dim=0).cpu().numpy()
-                    # for i, cls in enumerate(CLASSES):
-                    #     probs[i] *= SENSITIVITY.get(cls, 1.0)
                     probs = probs / np.sum(probs)
-                    prob_buffer.append(probs)
+                    self.prob_buffer.append(probs)
                     
-                if len(prob_buffer) > 0:
-                    current_probs = np.mean(prob_buffer, axis=0)
+                if len(self.prob_buffer) > 0:
+                    current_probs = np.mean(self.prob_buffer, axis=0)
 
                 winner_idx = np.argmax(current_probs)
                 label = CLASSES[winner_idx]
                 confidence = current_probs[winner_idx]
+                
+                self.current_emotion = label
+                self.current_confidence = confidence
 
                 # --- 3. GAMIFICATION LOGIC (Face Box Color) ---
                 ui_color = COLOR_NEUTRAL
@@ -305,12 +308,14 @@ def main():
                 elif label == 'happy' and bpm < 85:
                     ui_color = COLOR_RELAXED
                     status_text = "Zone: Relaxed"
+                
+                self.current_zone = status_text
 
                 # --- 4. DATA LOGGING ---
-                if is_recording:
-                    session_data['times'].append(time.time())
-                    session_data['bpm'].append(bpm)
-                    session_data['probs'].append(current_probs)
+                if self.is_recording:
+                    self.session_data['times'].append(time.time())
+                    self.session_data['bpm'].append(bpm)
+                    self.session_data['probs'].append(current_probs)
 
                 # --- 5. DRAW UI ---
                 # Face Box (Gamified Color)
@@ -321,7 +326,7 @@ def main():
                 
                 # Main Label (White Text)
                 cv2.putText(display_frame, f"{label.upper()} {int(confidence*100)}%", 
-                           (x+5, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255,255,255), 2)
+                           (x+5, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
                 # Heart Rate & Zone Status (Bottom)
                 hr_color = (0, 0, 255) if bpm > 100 else (0, 255, 0)
@@ -331,7 +336,7 @@ def main():
                 cv2.putText(display_frame, status_text, (x, y+h+60), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, ui_color, 2)
 
-                if is_recording:
+                if self.is_recording:
                     cv2.circle(display_frame, (30, 30), 10, (0, 0, 255), -1)
                     cv2.putText(display_frame, "REC", (50, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
@@ -339,27 +344,138 @@ def main():
                 pass
         
         # --- 6. SIDEBAR STATS (Always visible) ---
-        if len(prob_buffer) > 0:
-            current_probs = np.mean(prob_buffer, axis=0)
+        if len(self.prob_buffer) > 0:
+            current_probs = np.mean(self.prob_buffer, axis=0)
         draw_bar_chart(display_frame, current_probs, CLASSES)
 
-        cv2.imshow("Biometric Monitor", display_frame)
-        
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord('q'):
-            break
-        elif key == ord('r'):
-            if not is_recording:
-                print("Recording Started...")
-                session_data = {'times': [], 'bpm': [], 'probs': []}
-                is_recording = True
-            else:
-                print("Recording Stopped.")
-                is_recording = False
-                generate_report(session_data)
+        return av.VideoFrame.from_ndarray(display_frame, format="bgr24")
 
-    cap.release()
-    cv2.destroyAllWindows()
+
+# --- 6. STREAMLIT APP ---
+def main():
+    st.set_page_config(
+        page_title="Biometric Monitor",
+        page_icon="🧠",
+        layout="wide"
+    )
+    
+    st.title("🧠 Biometric Emotion Monitor")
+    st.markdown("Real-time emotion detection and heart rate monitoring")
+    
+    # Sidebar controls
+    with st.sidebar:
+        st.header("⚙️ Controls")
+        
+        # Model status
+        model = load_model()
+        if model is not None:
+            st.success("✅ Model loaded successfully")
+        else:
+            st.error("❌ Model not found. Please check MODEL_PATH")
+            st.stop()
+        
+        st.markdown("---")
+        
+        # Settings
+        st.subheader("Settings")
+        gamma_val = st.slider("Gamma Correction", 0.5, 2.0, GAMMA_VALUE, 0.1)
+        apply_gamma = st.checkbox("Apply Gamma", value=APPLY_GAMMA)
+        
+        st.markdown("---")
+        
+        # Instructions
+        st.subheader("📋 Instructions")
+        st.markdown("""
+        1. Allow camera access when prompted
+        2. Position your face in the frame
+        3. Use the controls below to start/stop recording
+        4. Download your report when done
+        """)
+        
+        st.markdown("---")
+        st.info("**Zone Status:**\n- 🟢 Relaxed: Happy + Low HR\n- 🔴 Stressed: Fear/Angry or High HR\n- 🔵 Neutral: Default state")
+    
+    # Main content area
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.subheader("📹 Live Camera Feed")
+        
+        # WebRTC configuration
+        rtc_configuration = RTCConfiguration(
+            {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+        )
+        
+        # Create video processor context
+        ctx = webrtc_streamer(
+            key="emotion-detection",
+            video_processor_factory=EmotionVideoProcessor,
+            rtc_configuration=rtc_configuration,
+            media_stream_constraints={"video": True, "audio": False},
+        )
+    
+    with col2:
+        st.subheader("📊 Live Metrics")
+        
+        # Placeholders for live metrics
+        emotion_placeholder = st.empty()
+        confidence_placeholder = st.empty()
+        bpm_placeholder = st.empty()
+        zone_placeholder = st.empty()
+        
+        # Recording controls
+        st.markdown("---")
+        st.subheader("🎬 Recording")
+        
+        col_rec1, col_rec2 = st.columns(2)
+        
+        with col_rec1:
+            if st.button("▶️ Start Recording", use_container_width=True):
+                if ctx.video_processor:
+                    ctx.video_processor.is_recording = True
+                    ctx.video_processor.session_data = {'times': [], 'bpm': [], 'probs': []}
+                    st.success("Recording started!")
+        
+        with col_rec2:
+            if st.button("⏹️ Stop & Generate Report", use_container_width=True):
+                if ctx.video_processor and ctx.video_processor.is_recording:
+                    ctx.video_processor.is_recording = False
+                    
+                    if len(ctx.video_processor.session_data['times']) > 0:
+                        report_path = generate_report(ctx.video_processor.session_data)
+                        st.success(f"Report saved!")
+                        
+                        # Display the report
+                        st.image(report_path, caption="Session Report")
+                        
+                        # Download button
+                        with open(report_path, "rb") as file:
+                            st.download_button(
+                                label="📥 Download Report",
+                                data=file,
+                                file_name=os.path.basename(report_path),
+                                mime="image/png",
+                                use_container_width=True
+                            )
+                    else:
+                        st.warning("No data recorded yet!")
+        
+        # Update live metrics
+        if ctx.video_processor:
+            emotion_placeholder.metric("Current Emotion", 
+                                      ctx.video_processor.current_emotion.upper(), 
+                                      f"{int(ctx.video_processor.current_confidence*100)}%")
+            bpm_placeholder.metric("Heart Rate", f"{int(ctx.video_processor.current_bpm)} BPM")
+            zone_placeholder.metric("Status Zone", ctx.video_processor.current_zone)
+    
+    # Footer
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center; color: gray;'>
+        <small>Biometric Monitor v2.0 | Powered by PyTorch & Streamlit</small>
+    </div>
+    """, unsafe_allow_html=True)
+
 
 if __name__ == "__main__":
     main()

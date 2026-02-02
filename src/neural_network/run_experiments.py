@@ -13,9 +13,9 @@ import numpy as np
 
 # --- CONFIGURARE GENERALĂ ---
 BATCH_SIZE = 32
-EPOCHS = 15
-IMAGE_SIZE = 224
-NUM_CLASSES = 7 
+EPOCHS = 50
+IMAGE_SIZE = 100
+NUM_CLASSES = 7
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 RESULTS_DIR = 'docs/optimization'
 MODELS_DIR = 'models'
@@ -62,11 +62,58 @@ class EmotionDataset(Dataset):
         if self.transform: img = self.transform(img)
         return img, label
 
+# -- Model ---
+class SimpleEmotionCNN(nn.Module):
+    def __init__(self, num_classes=7):
+        super(SimpleEmotionCNN, self).__init__()
+
+        # Block 1: 3 -> 32 channels. Output size: 50x50
+        self.layer1 = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+
+        # Block 2: 32 -> 64 channels. Output size: 25x25
+        self.layer2 = nn.Sequential(
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(2,2)
+        ) 
+
+        # Block 3: 64 -> 128 channels. Output size: 12x12
+        self.layer3 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(2,2)
+        )
+        #added dropout
+        # self.drop = nn.Dropout(p=0.5)
+
+        # Classifier
+        self.fc = nn.Linear(128 * 12 * 12, num_classes)
+
+    def forward(self, x):
+        out = self.layer1(x)
+        out = self.layer2(out)
+        out = self.layer3(out)
+
+        out = out.view(out.size(0), -1) # Flatten
+        
+        # out= self.drop(out)
+        
+        out = self.fc(out)
+        return out
+
+
 # --- 2. CONFIGURARE EXPERIMENTE ---
 def get_experiment_config(exp_id):
     config = {
         'lr': 0.0003,
-        'architecture': 'resnet18', 
+        'architecture': 'simple', 
         'dropout': 0.5,
         'weight_decay': 0.0,
         'name': f'Exp_{exp_id}'
@@ -74,12 +121,14 @@ def get_experiment_config(exp_id):
     
     if exp_id == 1:
         config['name'] = 'Exp_1_Baseline'
+        config['dropout'] = 0.0
     elif exp_id == 2:
         config['name'] = 'Exp_2_HighLR'
         config['lr'] = 0.001
+        config['dropout'] = 0.0
     elif exp_id == 3:
         config['name'] = 'Exp_3_DeepArchitecture'
-        config['architecture'] = 'resnet18_deep'
+        config['architecture'] = 'deep'
         config['dropout'] = 0.55
     elif exp_id == 4:
         config['name'] = 'Exp_4_HighReg'
@@ -89,10 +138,15 @@ def get_experiment_config(exp_id):
     return config
 
 def build_model(config):
-    model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+    # 1. Instantiate your custom model instead of loading ResNet
+    model = SimpleEmotionCNN(num_classes=NUM_CLASSES)
+    
+    # 2. Get the input features from your model's existing fc layer
+    # Based on your code, this will grab (128 * 12 * 12) automatically
     num_ftrs = model.fc.in_features
     
-    if config['architecture'] == 'resnet18_deep':
+    # 3. Replace the fc layer with the specific architecture variant
+    if config['architecture'] == 'deep': # I renamed this to match the context
         model.fc = nn.Sequential(
             nn.Linear(num_ftrs, 1024),
             nn.ReLU(),
@@ -100,16 +154,18 @@ def build_model(config):
             nn.Linear(1024, NUM_CLASSES)
         )
     else:
+        # Standard variant with added dropout
         model.fc = nn.Sequential(
             nn.Dropout(config['dropout']),
             nn.Linear(num_ftrs, NUM_CLASSES)
         )
+        
     return model.to(DEVICE)
 
 # --- 3. FUNCȚIE DE ANTRENARE ---
 def run_training(exp_id):
     cfg = get_experiment_config(exp_id)
-    print(f"\n🚀 Starting {cfg['name']} | LR: {cfg['lr']} | Arch: {cfg['architecture']} | L2: {cfg['weight_decay']}")
+    print(f"\n🚀 Starting {cfg['name']} | LR: {cfg['lr']} | Arch: {cfg['architecture']} | L2: {cfg['weight_decay']} | Dropout: {cfg["dropout"]}")
     
     # Date
     classes = sorted([d for d in os.listdir(RAF_TRAIN_DIR) if os.path.isdir(os.path.join(RAF_TRAIN_DIR, d))])
@@ -117,11 +173,12 @@ def run_training(exp_id):
     test_files = glob.glob(os.path.join(RAF_TEST_DIR, '*', '*.jpg'))
     
     transform = transforms.Compose([
-        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomAffine(15, translate=(0.1, 0.1), scale=(0.9, 1.1)),
+        transforms.Resize((100,100)),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomRotation(degrees=15),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
         transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
     val_transform = transforms.Compose([
         transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),

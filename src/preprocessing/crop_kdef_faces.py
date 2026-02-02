@@ -3,7 +3,7 @@ import os
 import re
 import numpy as np
 
-def crop_faces_by_convention(source_dir, dest_dir, convention_pattern=r"^\d+_\d+\.(jpg|png|jpeg)$"):
+def crop_faces_by_convention(source_dir, dest_dir, convention_pattern=r".+\.(jpg|png|jpeg)$"):
     """
     Scans source_dir for images matching the naming convention,
     detects faces, crops them, and saves them to dest_dir.
@@ -27,8 +27,10 @@ def crop_faces_by_convention(source_dir, dest_dir, convention_pattern=r"^\d+_\d+
     print(f"🔍 Scanning {source_dir} for files matching {convention_pattern}...")
 
     for root, dirs, files in os.walk(source_dir):
+        print(root)
         for file in files:
             # 1. Check Naming Convention
+            
             if pattern.match(file):
                 input_path = os.path.join(root, file)
                 
@@ -56,10 +58,10 @@ def crop_faces_by_convention(source_dir, dest_dir, convention_pattern=r"^\d+_\d+
                     (x, y, w, h) = faces[0]
                     
                     # Crop
-                    face_roi = gray[y:y+h, x:x+w]
+                    face_roi = img[y:y+h, x:x+w]
                     
-                    # Resize to 48x48 (Standard for this project)
-                    face_roi = cv2.resize(face_roi, (48, 48))
+                    # Resize to 100x100 (Standard for this project)
+                    face_roi = cv2.resize(face_roi, (100, 100))
                     
                     # Save
                     output_path = os.path.join(output_folder, file)
@@ -77,7 +79,7 @@ if __name__ == "__main__":
     # Example Usage
     # Assuming 'kdef' has raw photos and we want to output to 'data/generated' or 'data/raw/train'
     # You can adjust these paths
-    SOURCE_ROOT = "data/raw/train" 
-    DEST_ROOT = "data/kdef_cropped" # Intermediate folder before merging
+    SOURCE_ROOT = ".downloads/poze_tel_uncropped" 
+    DEST_ROOT = ".downloads/poze_tel_cropped" # Intermediate folder before merging
     
     crop_faces_by_convention(SOURCE_ROOT, DEST_ROOT)

@@ -572,3 +572,34 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+-----------------------------
+
+data split (deprecated)
+# 2. Prepare Data
+
+    # NOTE: Since we split random_split on 'full_dataset', the validation set
+    # will technically have augmentations applied. This makes valid accuracy
+    # slightly harder to achieve, but is fine for a starter script.
+    dummy_dataset = EmotionDataset(raf_dir=TRAIN_DIR, gen_dir=GENERATED_DIR, transform=None)
+    
+    train_size = int(0.8 * len(dummy_dataset))
+    val_size = len(dummy_dataset) - train_size
+    
+    # generate_seed ensures we get the same split every time we run the code
+    generator = torch.Generator().manual_seed(42) 
+    train_set, val_set = random_split(dummy_dataset, [train_size, val_size], generator=generator)
+
+
+
+
+        
+    # 3. Create Subsets pointing to the correct source
+    # We use the INDICES from step 1, but point them to the datasets from step 2
+    from torch.utils.data import Subset
+    
+    final_train_set = Subset(train_data_source, train_set.indices)
+    final_val_set = Subset(val_data_source, val_set.indices)

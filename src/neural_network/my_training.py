@@ -14,8 +14,9 @@ from PIL import Image
 
 # --- CONFIGURATION ---
 DATA = "data"
-GENERATED_DIR = os.path.join(DATA, "generated")
-RAW_DIR = os.path.join(DATA, "raw")
+GENERATED_DIR = "data/generated"
+TRAIN_DIR = os.path.join(DATA, "raw/train")
+TEST_DIR =  os.path.join(DATA, "raw/test")
 BATCH_SIZE = 32
 NUM_EPOCHS = 50
 LEARNING_RATE = 0.001
@@ -141,35 +142,16 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Training on: {device}")
 
-    # 2. Prepare Data
-
-    # NOTE: Since we split random_split on 'full_dataset', the validation set
-    # will technically have augmentations applied. This makes valid accuracy
-    # slightly harder to achieve, but is fine for a starter script.
-    dummy_dataset = EmotionDataset(raf_dir=RAW_DIR, gen_dir=GENERATED_DIR, transform=None)
+    print(TRAIN_DIR)
     
-    train_size = int(0.8 * len(dummy_dataset))
-    val_size = len(dummy_dataset) - train_size
-    
-    # generate_seed ensures we get the same split every time we run the code
-    generator = torch.Generator().manual_seed(42) 
-    train_set, val_set = random_split(dummy_dataset, [train_size, val_size], generator=generator)
-
     # 2. Create Two Distinct Datasets
     train_tf, val_tf = get_transforms()
 
     # The Training Dataset (With Augmentation)
-    train_data_source = EmotionDataset(raf_dir=RAW_DIR, gen_dir=GENERATED_DIR, transform=train_tf)
+    train_set = EmotionDataset(raf_dir=TRAIN_DIR, gen_dir=GENERATED_DIR, transform=train_tf)
     
     # The Validation Dataset (Clean, Resize only)
-    val_data_source = EmotionDataset(raf_dir=RAW_DIR, gen_dir=GENERATED_DIR, transform=val_tf)
-    
-    # 3. Create Subsets pointing to the correct source
-    # We use the INDICES from step 1, but point them to the datasets from step 2
-    from torch.utils.data import Subset
-    
-    final_train_set = Subset(train_data_source, train_set.indices)
-    final_val_set = Subset(val_data_source, val_set.indices)
+    val_set = EmotionDataset(raf_dir=TEST_DIR, gen_dir="", transform=val_tf)
 
     # 4. Calculate Sampling Weights (The 40% Logic)
     # We need to scan the full dataset to count the real split ratios
@@ -178,7 +160,7 @@ def main():
 
     # Helper scan of the whole dataset logic to get global counts
     # This is an estimation to set the global weights
-    for idx, path in enumerate(dummy_dataset.image_paths):
+    for idx, path in enumerate(train_set.image_paths):
         if "generated" in path:
             gen_indices.append(idx)
         else:
@@ -194,23 +176,24 @@ def main():
 
     # Apply weights specifically to the Training Subset
     train_weights = []
-    for idx in final_train_set.indices:
-        path = dummy_dataset.image_paths[idx]
-        if "generated" in path:
+    for img_path in train_set.image_paths:
+        if "generated" in img_path:
             train_weights.append(weight_per_gen)
         else:
             train_weights.append(weight_per_raf)
 
     # 5. Loaders
     train_sampler = WeightedRandomSampler(train_weights, num_samples=len(train_weights), replacement=True)
-    train_loader = DataLoader(final_train_set, batch_size=BATCH_SIZE, sampler=train_sampler)
-    val_loader = DataLoader(final_val_set, batch_size=BATCH_SIZE, shuffle=False)
+    train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, sampler=train_sampler)
+    val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, shuffle=False)
 
     # 6. Model Setup
     model = SimpleEmotionCNN(num_classes=7).to(device)
     criterion = nn.CrossEntropyLoss()
+    # criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=25, gamma=0.1)
+    # scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS, eta_min=0.00001)
 
     # 7. Training Loop
     os.makedirs("models", exist_ok=True)
@@ -290,7 +273,7 @@ def main():
         scheduler.step()
         
         # Optional: Print LR to confirm it's dropping
-        current_lr = scheduler.get_last_lr()[0]
+        current_lr = scheduler.get_last_lr()
         print(f"Epoch {epoch+1} LR: {current_lr}")
         
         # Save Checkpoint

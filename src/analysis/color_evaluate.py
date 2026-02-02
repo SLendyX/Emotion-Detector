@@ -17,7 +17,6 @@ NUM_CLASSES = 7
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Paths
-RAF_TRAIN_DIR = 'data/raw/train' # Needed just to get class names
 RAF_TEST_DIR = 'data/raw/test'
 MODEL_PATH = 'models/emotion_model_epoch_50.pt'
 
@@ -116,7 +115,7 @@ if __name__ == "__main__":
     # model.fc = nn.Linear(num_ftrs, NUM_CLASSES)
     
     
-    # Load Model structure custom
+    # # Load Model structure custom
     model = SimpleEmotionCNN(num_classes=7)
     
     # Load Trained Weights
