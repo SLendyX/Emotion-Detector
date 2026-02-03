@@ -2,9 +2,9 @@
 
 ### 2.1 Sursa datelor
 
-* **Origine:** [Dataset-ul FER2013 (Kaggle Challenge)](https://www.kaggle.com/datasets/msambare/fer2013)
+* **Origine:** [Dataset-ul balanced-raf-db](https://www.kaggle.com/datasets/sanjukinpinem/balanced-raf-db)
 * **Modul de achiziție:** Fișier extern (descărcat)
-* **Perioada / condițiile colectării:** Date istorice, colectate pentru competiția ICML 2013
+* **Perioada / condițiile colectării:** 
 
 ### 2.2 Caracteristicile dataset-ului
 
@@ -31,7 +31,7 @@
 ### 3.1 Statistici descriptive aplicate
 
 * **Medie, mediană, deviație standard** 
-![histograma pixeli](../histograma_pixeli.png)
+![histograma pixeli](../grafice/histograma_pixeli.png)
 *Fig 1. Distribuția globală a intensității pixelilor. Forma de clopot indică o normalizare corectă.*
 
   * Medie: 0.5077 (Ideal ~0.5 pentru date normalizate)
@@ -44,11 +44,11 @@
   * Q3 (75%): 0.7098
 
 * **Distribuții pe caracteristici** (histograme)
-![distributie clase emotii](../distributie_clase.png)
+![distributie clase emotii](../grafice/distributie_clase_direct.png)
 *Fig 2. Dezechilibrul claselor în setul de antrenare. Se observă predominanța clasei "Happy".*
 
 * **Identificarea outlierilor** (IQR / percentile)
-![boxplot outlieri](../boxplot_outlieri.png)
+![boxplot outlieri](../grafice/boxplot_intensitate.png)
 
 *Fig 3. Identificarea imaginilor extreme (prea întunecate sau prea luminoase) folosind metoda IQR.*
 
@@ -179,6 +179,6 @@
 - [X] Dataset analizat (EDA realizată)
 - [X] Date preprocesate
 - [X] Seturi train/val/test generate
-- [X] Documentație actualizată în README + `data/README.md`
+- [x] Documentație actualizată în README + `data/README.md`
 
 ---
