@@ -85,7 +85,7 @@ def main():
     plt.ylabel('Number of Images')
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     
-    hist_path = os.path.join(DOCS_DIR, "distributie_clase_direct.png")
+    hist_path = os.path.join(DOCS_DIR, "grafice/distributie_clase_direct.png")
     plt.savefig(hist_path)
     print(f"✅ Histogram saved to: {hist_path}")
     plt.close()
@@ -121,7 +121,7 @@ def main():
             print(f"⚠️ Could not load {random_path}")
 
     plt.tight_layout()
-    samples_path = os.path.join(DOCS_DIR, "esantioane_emotii_direct.png")
+    samples_path = os.path.join(DOCS_DIR, "grafice/esantioane_emotii_direct.png")
     plt.savefig(samples_path)
     print(f"✅ Samples saved to: {samples_path}")
     plt.close()
@@ -168,7 +168,7 @@ def main():
     plt.ylabel('Mean Pixel Intensity (0=Black, 255=White)')
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     
-    box_path = os.path.join(DOCS_DIR, "boxplot_intensitate.png")
+    box_path = os.path.join(DOCS_DIR, "grafice/boxplot_intensitate.png")
     plt.savefig(box_path)
     print(f"✅ Boxplot saved to: {box_path}")
     plt.close()
@@ -180,8 +180,21 @@ def main():
     plt.xlabel('Pixel Value (0=Black, 255=White)')
     plt.ylabel('Frequency')
     plt.grid(axis='y', linestyle='--', alpha=0.7)
+
+    mean_val = np.mean(pixel_intensities)
+    median_val = np.median(pixel_intensities)
+    std_val = np.std(pixel_intensities)
+
+    print(f"Medie: {mean_val:.2f}")
+    print(f"Mediană: {median_val:.2f}")
+    print(f"Deviație standard: {std_val:.2f}")
+
+    # Opțional: Adăugăm linii verticale pe grafic pentru a le vizualiza
+    plt.axvline(mean_val, color='red', linestyle='dashed', linewidth=2, label=f'Medie: {mean_val:.1f}')
+    plt.axvline(median_val, color='green', linestyle='dotted', linewidth=2, label=f'Mediană: {median_val:.1f}')
+    plt.legend()
     
-    pixel_hist_path = os.path.join(DOCS_DIR, "histograma_pixeli.png")
+    pixel_hist_path = os.path.join(DOCS_DIR, "grafice/histograma_pixeli.png")
     plt.savefig(pixel_hist_path)
     print(f"✅ Pixel Histogram saved to: {pixel_hist_path}")
     plt.close()
