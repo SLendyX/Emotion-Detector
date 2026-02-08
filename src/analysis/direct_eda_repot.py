@@ -161,6 +161,39 @@ def main():
         
         mean_intensities_per_class.append(class_means)
 
+    for i, cat in enumerate(CATEGORIES):
+        # Convertim lista de medii (0-255) în array numpy
+        raw_values = np.array(mean_intensities_per_class[i])
+        
+        if len(raw_values) == 0:
+            print(f"\n--- {cat}: Fără date ---")
+            continue
+
+        # 1. Normalizare la 0-1
+        norm_values = raw_values / 255.0
+
+        # 2. Calcul Quartile și IQR
+        q1 = np.percentile(norm_values, 25)
+        q3 = np.percentile(norm_values, 75)
+        iqr = q3 - q1
+
+        # 3. Calcul Limite (metoda standard Tukey: 1.5 * IQR)
+        lower_limit = q1 - 1.5 * iqr
+        upper_limit = q3 + 1.5 * iqr
+
+        # 4. Identificare Outlieri
+        # Outlieri întunecați: valori strict mai mici decât limita inferioară
+        dark_outliers = norm_values[norm_values < lower_limit]
+        # Outlieri luminoși: valori strict mai mari decât limita superioară
+        bright_outliers = norm_values[norm_values > upper_limit]
+
+        print(f"\nCategoria: {cat}")
+        print(f"  * IQR (Interquartile Range): {iqr:.4f}")
+        print(f"  * Limita inferioară (Prea întunecat): {lower_limit:.4f}")
+        print(f"  * Limita superioară (Prea luminos): {upper_limit:.4f}")
+        print(f"  * Imagini outlier întunecate: {len(dark_outliers)}")
+        print(f"  * Imagini outlier luminoase: {len(bright_outliers)}")
+
     # 1. Boxplot (Brightness per Class)
     plt.figure(figsize=(10, 6))
     plt.boxplot(mean_intensities_per_class, labels=CATEGORIES, patch_artist=True)
@@ -185,9 +218,23 @@ def main():
     median_val = np.median(pixel_intensities)
     std_val = np.std(pixel_intensities)
 
-    print(f"Medie: {mean_val:.2f}")
-    print(f"Mediană: {median_val:.2f}")
-    print(f"Deviație standard: {std_val:.2f}")
+    print(f"Medie: {mean_val/255.0:.2f}")
+    print(f"Mediană: {median_val/255.0:.2f}")
+    print(f"Deviație standard: {std_val/255.0:.2f}")
+    
+    pixels_np = np.array(pixel_intensities)
+
+    # Calculate raw statistics (0-255 range)
+    min_raw = np.min(pixels_np)
+    max_raw = np.max(pixels_np)
+    q1_raw = np.percentile(pixels_np, 25)
+    q3_raw = np.percentile(pixels_np, 75)
+
+    print("\n--- Statistici Detaliate (Normalizate 0-1) ---")
+    # We divide by 255.0 to get the 0.0 - 1.0 range you asked for
+    print(f"* Min: {min_raw:.1f}, Max: {max_raw:.1f}")
+    print(f"* Q1 (25%): {q1_raw:.4f}")
+    print(f"* Q3 (75%): {q3_raw:.4f}")
 
     # Opțional: Adăugăm linii verticale pe grafic pentru a le vizualiza
     plt.axvline(mean_val, color='red', linestyle='dashed', linewidth=2, label=f'Medie: {mean_val:.1f}')
