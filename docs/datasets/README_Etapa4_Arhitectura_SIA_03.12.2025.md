@@ -34,11 +34,11 @@ Această etapă corespunde punctului **5. Dezvoltarea arhitecturii aplicației s
 
 ## 1. Tabelul Nevoie Reală → Soluție SIA → Modul Software
 
-| **Nevoie reală concretă** | **Cum o rezolvă SIA-ul vostru** | **Modul software responsabil** |
-|---------------------------|--------------------------------|--------------------------------|
-| Monitorizarea stării de bine a angajaților în regim remote | Detecție emoții + Estimare puls (rPPG) → Identificare semne de stres în < 1 secundă | RN + Heart Rate Module + UI |
-| Evaluarea reacției utilizatorilor la conținut digital (UX) | Clasificare automată a micro-expresiilor faciale → Raport impact emoțional | RN + Data Logging |
-| Securitate asistată prin analiză comportamentală | Detectarea agitației prin corelarea pulsului cu mimica facială | RN + Web Service |
+| **Nevoie reală concretă**                                  | **Cum o rezolvă SIA-ul vostru**                                                     | **Modul software responsabil** |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------ |
+| Monitorizarea stării de bine a angajaților în regim remote | Detecție emoții + Estimare puls (rPPG) → Identificare semne de stres în < 1 secundă | RN + Heart Rate Module + UI    |
+| Evaluarea reacției utilizatorilor la conținut digital (UX) | Clasificare automată a micro-expresiilor faciale → Raport impact emoțional          | RN + Data Logging              |
+| Securitate asistată prin analiză comportamentală           | Detectarea agitației prin corelarea pulsului cu mimica facială                      | RN + Web Service               |
 
 ---
 
@@ -75,7 +75,7 @@ Procesul a implicat detectarea feței, decuparea automată (crop) și redimensio
 Am ales o arhitectură de **monitorizare continuă** deoarece proiectul necesită procesarea unui flux video în timp real pentru a extrage simultan date despre emoții și puls.
 
 **Stările principale sunt:**
-1. **IDLE / Initialization:** Sistemul încarcă modelul Rețelei Neuronale (`emotion_model.keras`) și inițializează buffer-ul pentru puls.
+1. **IDLE / Initialization:** Sistemul încarcă modelul Rețelei Neuronale (`emotion_model.pt`) și inițializează buffer-ul pentru puls.
 2. **ACQUISITION:** Preluarea continuă a cadrelor video de la webcam.
 3. **DETECTION & PROCESSING:** Identificarea feței; dacă se detectează o față, se trece la pre-procesarea imaginii pentru RN și analiza culorii pentru rPPG.
 4. **INFERENCE:** Execuția modelului CNN pentru emoții și calculul FFT pentru puls.
@@ -87,11 +87,11 @@ Tranziția către starea de **ERROR** este esențială pentru a gestiona situaț
 
 ## 4. Scheletul Complet al celor 3 Module
 
-| **Modul** | **Tehnologie** | **Cerință minimă funcțională** |
-|-----------|----------------|--------------------------------|
-| **1. Data Logging / Acquisition** | Python (`capture_data.py`) | Produce imagini/CSV cu datele originale (40%) și rulează fără erori. |
-| **2. Neural Network Module** | TensorFlow/Keras (`train.py`) | Modelul CNN este definit, compilat și poate fi încărcat pentru inferență. |
-| **3. Web Service / UI** | OpenCV / `main_app.py` | Primește input video și afișează predicția emoției și a pulsului. |
+| **Modul**                         | **Tehnologie**                     | **Cerință minimă funcțională**                                            |
+| --------------------------------- | ---------------------------------- | ------------------------------------------------------------------------- |
+| **1. Data Logging / Acquisition** | Python (`collect_highdef_data.py`) | Produce imagini cu datele originale (40%) și rulează fără erori.          |
+| **2. Neural Network Module**      | Pytorch/Torchvision (`train.py`)   | Modelul CNN este definit, compilat și poate fi încărcat pentru inferență. |
+| **3. Web Service / UI**           | OpenCV / `color_app_web.py`        | Primește input video și afișează predicția emoției și a pulsului.         |
 
 ---
 
