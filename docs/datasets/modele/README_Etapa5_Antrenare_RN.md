@@ -27,8 +27,8 @@ Această etapă corespunde punctului **6. Configurarea și antrenarea modelului 
 
 - [x] **State Machine** definit și documentat în `docs/state_machine.*`
 - [x] **Contribuție ≥40% date originale** în `data/generated/` (verificabil)
-- [ ] **Modul 1 (Data Logging)** funcțional - produce CSV-uri
-- [ ] **Modul 2 (RN)** cu arhitectură definită dar NEANTRENATĂ (`models/untrained_model.h5`)
+- [x] **Modul 1 (Data Logging)** funcțional - produce CSV-uri
+- [x] **Modul 2 (RN)** cu arhitectură definită dar NEANTRENATĂ (`models/untrained_model.h5`)
 - [x] **Modul 3 (UI/Web Service)** funcțional cu model dummy
 - [x] **Tabelul "Nevoie → Soluție → Modul"** complet în README Etapa 4
 
@@ -95,23 +95,27 @@ Completați **TOATE** punctele următoare:
 
 Completați tabelul cu hiperparametrii folosiți și **justificați fiecare alegere**:
 
-| **Hiperparametru** | **Valoare Aleasă** | **Justificare** |
-|--------------------|-------------------|-----------------|
-| Learning rate | Ex: 0.001 | Valoare standard pentru Adam optimizer, asigură convergență stabilă |
-| Batch size | Ex: 32 | Compromis memorie/stabilitate pentru N=[numărul vostru] samples |
-| Number of epochs | Ex: 50 | Cu early stopping după 10 epoci fără îmbunătățire |
-| Optimizer | Ex: Adam | Adaptive learning rate, potrivit pentru RN cu [numărul vostru] straturi |
-| Loss function | Ex: Categorical Crossentropy | Clasificare multi-class cu K=[numărul vostru] clase |
-| Activation functions | Ex: ReLU (hidden), Softmax (output) | ReLU pentru non-linearitate, Softmax pentru probabilități clase |
+| **Hiperparametru**   | **Valoare Aleasă**              | **Justificare**                                                     |
+| -------------------- | ------------------------------- | ------------------------------------------------------------------- |
+| Learning rate        | 0.001                           | Valoare standard pentru Adam optimizer, asigură convergență stabilă |
+| Batch size           | 32                              | Compromis memorie/stabilitate pentru N=2848 samples                 |
+| Number of epochs     | 50                              | Cu early stopping după 10 epoci fără îmbunătățire                   |
+| Optimizer            | Adam                            | Adaptive learning rate, potrivit pentru RN cu 3 straturi            |
+| Loss function        | Categorical Crossentropy        | Clasificare multi-class cu K=7 clase                                |
+| Activation functions | ReLU (hidden), Softmax (output) | ReLU pentru non-linearitate, Softmax pentru probabilități clase     |
 
-**Justificare detaliată batch size (exemplu):**
-```
-Am ales batch_size=32 pentru că avem N=15,000 samples → 15,000/32 ≈ 469 iterații/epocă.
-Aceasta oferă un echilibru între:
-- Stabilitate gradient (batch prea mic → zgomot mare în gradient)
-- Memorie GPU (batch prea mare → out of memory)
-- Timp antrenare (batch 32 asigură convergență în ~50 epoci pentru problema noastră)
-```
+Am ales batch_size=32 pentru setul de antrenare de N=2.848 imagini, ceea ce rezultă în 2.848 / 32 = 89 iterații (pași de actualizare) per epocă.
+
+Această valoare a fost selectată pentru a optimiza antrenarea pe un dataset de dimensiuni reduse:
+
+1. Frecvența actualizării greutăților:
+   La un dataset mic, un batch size mare (ex: 128) ar fi generat prea puține actualizări per epocă (doar ~22 pași), încetinind convergența. Batch-ul de 32 asigură 89 de actualizări, permițând modelului să învețe mai fin și mai rapid în cadrul celor 50 de epoci alocate.
+
+2. Efectul de regularizare (Generalizare):
+   Batch-ul de 32 introduce un nivel moderat de "zgomot" statistic în estimarea gradientului. Acest zgomot este benefic deoarece ajută modelul să nu rămână blocat în minime locale și să generalizeze mai bine pe datele de test, evitând overfitting-ul rapid care ar apărea cu batch-uri mari pe date puține.
+
+3. Eficiență Computațională:
+   Pentru imagini de 100x100px, dimensiunea 32 este extrem de eficientă, ocupând puțină memorie VRAM și permițând antrenarea chiar și pe GPU-uri modeste, fără riscul de "Out of Memory".
 
 **Resurse învățare rapidă:**
 - Împărțire date: https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.train_test_split.html (video 3 min: https://youtu.be/1NjLMWSGosI?si=KL8Qv2SJ1d_mFZfr)  
@@ -150,11 +154,12 @@ Includeți **TOATE** cerințele Nivel 1 + următoarele:
 
 **Punctaj bonus per activitate:**
 
-| **Activitate** |  **Livrabil** |
-|----------------|--------------|
-| Comparare 2+ arhitecturi diferite | Tabel comparativ + justificare alegere finală în README |
-| Export ONNX/TFLite + benchmark latență | Fișier `models/final_model.onnx` + demonstrație <50ms |
-| Confusion Matrix + analiză 5 exemple greșite | `docs/confusion_matrix.png` + analiză în README |
+| **Activitate**                               | **Livrabil**                                            |
+| -------------------------------------------- | ------------------------------------------------------- |
+| Comparare 2+ arhitecturi diferite            | Tabel comparativ + justificare alegere finală în README |
+| Export ONNX/TFLite + benchmark latență       | Fișier `models/final_model.onnx` + demonstrație <50ms   |
+| Confusion Matrix + analiză 5 exemple greșite | `docs/confusion_matrix.png` + analiză în README         |
+
 
 **Resurse bonus:**
 - Export ONNX din PyTorch: [PyTorch ONNX Tutorial](https://pytorch.org/tutorials/beginner/onnx/export_simple_model_to_onnx_tutorial.html)
@@ -385,33 +390,33 @@ streamlit run src/app/main.py
 ## Checklist Final – Bifați Totul Înainte de Predare
 
 ### Prerequisite Etapa 4 (verificare)
-- [ ] State Machine există și e documentat în `docs/state_machine.*`
-- [ ] Contribuție ≥40% date originale verificabilă în `data/generated/`
-- [ ] Cele 3 module din Etapa 4 funcționale
+- [x] State Machine există și e documentat în `docs/state_machine.*`
+- [x] Contribuție ≥40% date originale verificabilă în `data/generated/`
+- [x] Cele 3 module din Etapa 4 funcționale
 
 ### Preprocesare și Date
-- [ ] Dataset combinat (vechi + nou) preprocesat (dacă ați adăugat date)
+- [x] Dataset combinat (vechi + nou) preprocesat (dacă ați adăugat date)
 - [ ] Split train/val/test: 70/15/15% (verificat dimensiuni fișiere)
 - [ ] Scaler din Etapa 3 folosit consistent (`config/preprocessing_params.pkl`)
 
 ### Antrenare Model - Nivel 1 (OBLIGATORIU)
-- [ ] Model antrenat de la ZERO (nu fine-tuning pe model pre-antrenat)
+- [x] Model antrenat de la ZERO (nu fine-tuning pe model pre-antrenat)
 - [ ] Minimum 10 epoci rulate (verificabil în `results/training_history.csv`)
 - [ ] Tabel hiperparametri + justificări completat în acest README
-- [ ] Metrici calculate pe test set: **Accuracy ≥65%**, **F1 ≥0.60**
-- [ ] Model salvat în `models/trained_model.h5` (sau .pt, .lvmodel)
+- [x] Metrici calculate pe test set: **Accuracy ≥65%**, **F1 ≥0.60**
+- [x] Model salvat în `models/trained_model.h5` (sau .pt, .lvmodel)
 - [ ] `results/training_history.csv` există cu toate epoch-urile
 
 ### Integrare UI și Demonstrație - Nivel 1 (OBLIGATORIU)
-- [ ] Model ANTRENAT încărcat în UI din Etapa 4 (nu model dummy)
-- [ ] UI face inferență REALĂ cu predicții corecte
+- [x] Model ANTRENAT încărcat în UI din Etapa 4 (nu model dummy)
+- [x] UI face inferență REALĂ cu predicții corecte
 - [ ] Screenshot inferență reală în `docs/screenshots/inference_real.png`
-- [ ] Verificat: predicțiile sunt diferite față de Etapa 4 (când erau random)
+- [x] Verificat: predicțiile sunt diferite față de Etapa 4 (când erau random)
 
 ### Documentație Nivel 2 (dacă aplicabil)
 - [ ] Early stopping implementat și documentat în cod
-- [ ] Learning rate scheduler folosit (ReduceLROnPlateau / StepLR)
-- [ ] Augmentări relevante domeniu aplicate (NU rotații simple!)
+- [x] Learning rate scheduler folosit (ReduceLROnPlateau / StepLR)
+- [x] Augmentări relevante domeniu aplicate (NU rotații simple!)
 - [ ] Grafic loss/val_loss salvat în `docs/loss_curve.png`
 - [ ] Analiză erori în context industrial completată (4 întrebări răspunse)
 - [ ] Metrici Nivel 2: **Accuracy ≥75%**, **F1 ≥0.70**
@@ -423,15 +428,15 @@ streamlit run src/app/main.py
 
 ### Verificări Tehnice
 - [ ] `requirements.txt` actualizat cu toate bibliotecile noi
-- [ ] Toate path-urile RELATIVE (nu absolute: `/Users/...` )
-- [ ] Cod nou comentat în limba română sau engleză (minimum 15%)
-- [ ] `git log` arată commit-uri incrementale (NU 1 commit gigantic)
+- [x] Toate path-urile RELATIVE (nu absolute: `/Users/...` )
+- [x] Cod nou comentat în limba română sau engleză (minimum 15%)
+- [x] `git log` arată commit-uri incrementale (NU 1 commit gigantic)
 - [ ] Verificare anti-plagiat: toate punctele 1-5 respectate
 
 ### Verificare State Machine (Etapa 4)
-- [ ] Fluxul de inferență respectă stările din State Machine
-- [ ] Toate stările critice (PREPROCESS, INFERENCE, ALERT) folosesc model antrenat
-- [ ] UI reflectă State Machine-ul pentru utilizatorul final
+- [x] Fluxul de inferență respectă stările din State Machine
+- [x] Toate stările critice (PREPROCESS, INFERENCE, ALERT) folosesc model antrenat
+- [x] UI reflectă State Machine-ul pentru utilizatorul final
 
 ### Pre-Predare
 - [ ] `docs/etapa5_antrenare_model.md` completat cu TOATE secțiunile

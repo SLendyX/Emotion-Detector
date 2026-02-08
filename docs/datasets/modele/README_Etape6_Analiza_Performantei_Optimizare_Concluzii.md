@@ -60,8 +60,8 @@ Deși Etapa 6 încheie ciclul formal de dezvoltare, **procesul iterativ continu�
 
 **Înainte de a începe Etapa 6, verificați că aveți din Etapa 5:**
 
-- [ ] **Model antrenat** salvat în `models/trained_model.h5` (sau `.pt`, `.lvmodel`)
-- [ ] **Metrici baseline** raportate: Accuracy ≥65%, F1-score ≥0.60
+- [x] **Model antrenat** salvat în `models/trained_model.h5` (sau `.pt`, `.lvmodel`)
+- [x] **Metrici baseline** raportate: Accuracy ≥65%, F1-score ≥0.60
 - [ ] **Tabel hiperparametri** cu justificări completat
 - [ ] **`results/training_history.csv`** cu toate epoch-urile
 - [ ] **UI funcțional** care încarcă modelul antrenat și face inferență reală
@@ -126,15 +126,15 @@ Am ales Exp 5 ca model final pentru că:
 
 ### Tabel Modificări Aplicație Software
 
-| **Componenta** | **Stare Etapa 5** | **Modificare Etapa 6** | **Justificare** |
-|----------------|-------------------|------------------------|-----------------|
-| **Model încărcat** | `trained_model.h5` | `optimized_model.h5` | +9% accuracy, -5% FN |
-| **Threshold alertă (State Machine)** | 0.5 (default) | 0.35 (clasa 'defect') | Minimizare FN în context industrial |
-| **Stare nouă State Machine** | N/A | `CONFIDENCE_CHECK` | Filtrare predicții cu confidence <0.6 |
-| **Latență target** | 100ms | 50ms (ONNX export) | Cerință timp real producție |
-| **UI - afișare confidence** | Da/Nu simplu | Bară progres + valoare % | Feedback operator îmbunătățit |
-| **Logging** | Doar predicție | Predicție + confidence + timestamp | Audit trail complet |
-| **Web Service response** | JSON minimal | JSON extins + metadata | Integrare API extern |
+| **Componenta**                       | **Stare Etapa 5**  | **Modificare Etapa 6**             | **Justificare**                       |
+| ------------------------------------ | ------------------ | ---------------------------------- | ------------------------------------- |
+| **Model încărcat**                   | `trained_model.h5` | `optimized_model.h5`               | +9% accuracy, -5% FN                  |
+| **Threshold alertă (State Machine)** | 0.5 (default)      | 0.35 (clasa 'defect')              | Minimizare FN în context industrial   |
+| **Stare nouă State Machine**         | N/A                | `CONFIDENCE_CHECK`                 | Filtrare predicții cu confidence <0.6 |
+| **Latență target**                   | 100ms              | 50ms (ONNX export)                 | Cerință timp real producție           |
+| **UI - afișare confidence**          | Da/Nu simplu       | Bară progres + valoare %           | Feedback operator îmbunătățit         |
+| **Logging**                          | Doar predicție     | Predicție + confidence + timestamp | Audit trail complet                   |
+| **Web Service response**             | JSON minimal       | JSON extins + metadata             | Integrare API extern                  |
 
 **Completați pentru proiectul vostru:**
 ```markdown
@@ -590,16 +590,16 @@ python src/neural_network/visualize.py --all
 ## Checklist Final – Bifați Totul Înainte de Predare
 
 ### Prerequisite Etapa 5 (verificare)
-- [ ] Model antrenat există în `models/trained_model.h5`
-- [ ] Metrici baseline raportate (Accuracy ≥65%, F1 ≥0.60)
-- [ ] UI funcțional cu model antrenat
-- [ ] State Machine implementat
+- [x] Model antrenat există în `models/trained_model.h5`
+- [x] Metrici baseline raportate (Accuracy ≥65%, F1 ≥0.60)
+- [x] UI funcțional cu model antrenat
+- [x] State Machine implementat
 
 ### Optimizare și Experimentare
 - [ ] Minimum 4 experimente documentate în tabel
 - [ ] Justificare alegere configurație finală
 - [ ] Model optimizat salvat în `models/optimized_model.h5`
-- [ ] Metrici finale: **Accuracy ≥70%**, **F1 ≥0.65**
+- [x] Metrici finale: **Accuracy ≥70%**, **F1 ≥0.65**
 - [ ] `results/optimization_experiments.csv` cu toate experimentele
 - [ ] `results/final_metrics.json` cu metrici model optimizat
 

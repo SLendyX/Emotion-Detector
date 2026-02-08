@@ -30,27 +30,19 @@ def get_image_paths():
     # 1. Scan RAF-DB
     for cat in CATEGORIES:
         # Check lowercase and capitalized folder names
-        paths = [
-            os.path.join(RAW_DIR, cat.lower()), 
-            os.path.join(RAW_DIR, cat)
-        ]
+        p = os.path.join(RAW_DIR, cat.lower())
         
-        for p in paths:
-            if os.path.exists(p):
-                files = glob.glob(os.path.join(p, "*.jpg")) + glob.glob(os.path.join(p, "*.png"))
-                data_map[cat].extend(files)
+        if os.path.exists(p):
+            files = glob.glob(os.path.join(p, "*.jpg")) + glob.glob(os.path.join(p, "*.png"))
+            data_map[cat].extend(files)
 
     # 2. Scan Generated Data
     for cat in CATEGORIES:
-        paths = [
-            os.path.join(GEN_DIR, cat.lower()), 
-            os.path.join(GEN_DIR, cat)
-        ]
+        p = os.path.join(GEN_DIR, cat.lower())
         
-        for p in paths:
-            if os.path.exists(p):
-                files = glob.glob(os.path.join(p, "*.jpg")) + glob.glob(os.path.join(p, "*.png"))
-                data_map[cat].extend(files)
+        if os.path.exists(p):
+            files = glob.glob(os.path.join(p, "*.jpg")) + glob.glob(os.path.join(p, "*.png"))
+            data_map[cat].extend(files)
 
     total_images = sum(len(v) for v in data_map.values())
     print(f"✅ Found {total_images} images total.")

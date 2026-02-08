@@ -71,15 +71,15 @@ Procesul a implicat detectarea feței, decuparea automată (crop) și redimensio
 **Trebuie sa generez aceste poze**
 - - - 
 **Dovezi:** 
-- Grafic comparativ: `docs/generated_vs_real.png`  
-- Setup experimental: `docs/acquisition_setup.jpg`  
+- Grafic comparativ: [docs/generated_vs_real.png](../../generated_vs_real.png) 
+- Setup experimental: [docs/acquisition_setup.jpg](../../aquisition_setup.png)
 
 ---
 
 ### 3. Diagrama State Machine a Întregului Sistem (OBLIGATORIE)
 
 
-![State Machine Diagram](../../Schema_functionare.drawio%20(1).png)  
+![State Machine Diagram](State_machine_diagram%201.png)
 *(Fișierul se află în docs/)*
 
 ### Justificarea State Machine-ului ales:
@@ -129,8 +129,8 @@ Toate cele 3 module trebuie să **pornească și să ruleze fără erori** la pr
 #### **Modul 3: Web Service / UI**
 
 **Funcționalități MINIME obligatorii:**
-- [ ] Propunere Interfață ce primește input de la user (formular, file upload, sau API endpoint)
-- [ ] Includeți un screenshot demonstrativ în `docs/screenshots/`
+- [x] Propunere Interfață ce primește input de la user (formular, file upload, sau API endpoint)
+- [x] Includeți un screenshot demonstrativ în `docs/screenshots/`
 
 ## Structura Repository-ului la Finalul Etapei 4 (OBLIGATORIE)
 
@@ -178,29 +178,29 @@ proiect-rn-[nume-prenume]/
 - [x] Tabelul Nevoie → Soluție → Modul complet (minimum 2 rânduri cu exemple concrete completate in README_Etapa4_Arhitectura_SIA.md)
 - [x] Declarație contribuție 40% date originale completată în README_Etapa4_Arhitectura_SIA.md
 - [x] Cod generare/achiziție date funcțional și documentat
-- [ ] Dovezi contribuție originală: grafice + log + statistici în `docs/`
-- [ ] Diagrama State Machine creată și salvată în `docs/state_machine.*`
+- [x] Dovezi contribuție originală: grafice + log + statistici în `docs/`
+- [x] Diagrama State Machine creată și salvată în `docs/state_machine.*`
 - [x] Legendă State Machine scrisă în README_Etapa4_Arhitectura_SIA.md (minimum 1-2 paragrafe cu justificare)
-- [ ] Repository structurat conform modelului de mai sus (verificat consistență cu Etapa 3)
+- [x] Repository structurat conform modelului de mai sus (verificat consistență cu Etapa 3)
 
 ### Modul 1: Data Logging / Acquisition
 - [x] Cod rulează fără erori (`python src/data_acquisition/...` sau echivalent LabVIEW)
 - [x] Produce minimum 40% date originale din dataset-ul final
 - [x] Imagini generate în format compatibil cu preprocesarea din Etapa 3
-- [ ] Documentație în `src/data_acquisition/README.md` cu:
-  - [ ] Metodă de generare/achiziție explicată
-  - [ ] Parametri folosiți (frecvență, durată, zgomot, etc.)
-  - [ ] Justificare relevanță date pentru problema voastră
-- [ ] Fișiere în `data/generated/` conform structurii
+- [x] Documentație în `src/data_acquisition/README.md` cu:
+  - [x] Metodă de generare/achiziție explicată
+  - [x] Parametri folosiți (frecvență, durată, zgomot, etc.)
+  - [x] Justificare relevanță date pentru problema voastră
+- [x] Fișiere în `data/generated/` conform structurii
 
 ### Modul 2: Neural Network
-- [ ] Arhitectură RN definită și documentată în cod (docstring detaliat) - versiunea inițială 
-- [ ] README în `src/neural_network/` cu detalii arhitectură curentă
+- [x] Arhitectură RN definită și documentată în cod (docstring detaliat) - versiunea inițială 
+- [x] README în `src/neural_network/` cu detalii arhitectură curentă
 
 ### Modul 3: Web Service / UI
 - [x] Propunere Interfață ce pornește fără erori (comanda de lansare testată)
-- [ ] Screenshot demonstrativ în `docs/screenshots/ui_demo.png`
-- [ ] README în `src/app/` cu instrucțiuni lansare (comenzi exacte)
+- [x] Screenshot demonstrativ în `docs/screenshots/ui_demo.png`
+- [x] README în `src/app/` cu instrucțiuni lansare (comenzi exacte)
 
 ---
 
