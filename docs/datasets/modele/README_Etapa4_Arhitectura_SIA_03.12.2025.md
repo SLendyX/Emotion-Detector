@@ -63,7 +63,7 @@ Completați in acest readme tabelul următor cu **minimum 2-3 rânduri** care le
 
 **Descriere detaliată:** Contribuția originală constă în utilizarea scriptului `collect_highdef_data.py` pentru a achiziția de imagini faciale direct de la webcam în condiții de iluminare variate. Această metodă a fost aleasă pentru a asigura robustețea modelului în scenariul de utilizare "live", adaptând sistemul la trăsăturile specifice ale utilizatorului și la calitatea senzorului local.
 
-Procesul a implicat detectarea feței, decuparea automată (crop) și redimensionarea la 48x48 pixeli în format grayscale pentru a menține consistența cu restul dataset-ului.
+Procesul a implicat detectarea feței, decuparea automată (crop) și redimensionarea la 100x100 pixeli în format color pentru a menține consistența cu restul dataset-ului.
 
 **Locația codului:** `src/data_acquisition/collect_highdef_data.py`  
 **Locația datelor:** `data/generated/`  

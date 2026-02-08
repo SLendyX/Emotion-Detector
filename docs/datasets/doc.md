@@ -33,34 +33,33 @@
 * **Medie, mediană, deviație standard** 
 ![histograma pixeli](../grafice/histograma_pixeli.png)
 *Fig 1. Distribuția globală a intensității pixelilor.*
-- - -
-de ramas sa modific astea de jos
-- - -
-  * Medie: 0.5077 (Ideal ~0.5 pentru date normalizate)
-  * Mediană: 0.5255
-  * Deviație Standard: 0.2551
+
+  * Medie: 0.38 (92.94/255)
+  * Mediană: 0.32 (78.00/255)
+  * Deviație Standard: 0.27 (66.30/255)
 
 * **Min–max și quartile**
-  * Min: 0.0, Max: 1.0
-  * Q1 (25%): 0.3098
-  * Q3 (75%): 0.7098
+  * Min: 0.0, Max: 255.0
+  * Q1 (25%): 39
+  * Q3 (75%): 154
 
 * **Distribuții pe caracteristici** (histograme)
 ![distributie clase emotii](../grafice/distributie_clase_direct.png)
-*Fig 2. Dezechilibrul claselor în setul de antrenare. Se observă predominanța clasei "Happy".*
+*Fig 2. Distributia setului de antrenare*
 
 * **Identificarea outlierilor** (IQR / percentile)
 ![boxplot outlieri](../grafice/boxplot_intensitate.png)
 
 *Fig 3. Identificarea imaginilor extreme (prea întunecate sau prea luminoase) folosind metoda IQR.*
-- - - 
-si astea de modificat
-- - - 
-  * IQR (Interquartile Range): 0.1799
-  * Limita inferioară (Prea întunecat): 0.1491
-  * Limita superioară (Prea luminos): 0.8687
-  * Imagini outlier întunecate: 75
-  * Imagini outlier luminoase: 45
+  
+| Criteriu                           | Angry  | Disgust | Fear   | Happy  | Neutral | Sad    | Surprised |
+| ---------------------------------- | ------ | ------- | ------ | ------ | ------- | ------ | --------- |
+| IQR (Interquartile Range)          | 0.1987 | 0.1244  | 0.1519 | 0.1566 | 0.2134  | 0.1520 | 0.2410    |
+| Limita inferioară (Prea întunecat) | 0.0226 | 0.2176  | 0.1141 | 0.1422 | 0.0323  | 0.1549 | -0.0092   |
+| Limita superioară (Prea luminos)   | 0.8175 | 0.7154  | 0.7215 | 0.7687 | 0.8859  | 0.7627 | 0.9548    |
+| Imagini outlier întunecate         | 0      | 2       | 0      | 2      | 0       | 1      | 0         |
+| Imagini outlier luminoase          | 0      | 1       | 0      | 2      | 0       | 0      | 0         |
+
 
 ### 3.2 Analiza calității datelor
 
