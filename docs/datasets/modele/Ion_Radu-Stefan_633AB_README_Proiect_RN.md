@@ -1,16 +1,16 @@
 ## 1. Identificare Proiect
 
-| Câmp | Valoare |
-|------|---------|
-| **Student** | [Nume Prenume] |
-| **Grupa / Specializare** | [ex: 63xAB / Informatică Industrială] |
-| **Disciplina** | Rețele Neuronale |
-| **Instituție** | POLITEHNICA București – FIIR |
-| **Link Repository GitHub** | [URL complet - ex: https://github.com/username/proiect-rn] |
-| **Acces Repository** | [Public / Privat cu acces cadre didactice RN] |
-| **Stack Tehnologic** | [Python / LabVIEW / Mixt] |
-| **Domeniul Industrial de Interes (DII)** | [ex: Robotică / Producție / Medical / Energie / Automotive] |
-| **Tip Rețea Neuronală** | [CNN / MLP / RNN / LSTM / Autoencoder / etc.] |
+| Câmp                                     | Valoare                                                                                    |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------ |
+| **Student**                              | Ion Radu-Stefan                                                                            |
+| **Grupa / Specializare**                 | 633AB / Informatică Industrială                                                            |
+| **Disciplina**                           | Rețele Neuronale                                                                           |
+| **Instituție**                           | POLITEHNICA București – FIIR                                                               |
+| **Link Repository GitHub**               | [https://github.com/SLendyX/Emotion-Detector](https://github.com/SLendyX/Emotion-Detector) |
+| **Acces Repository**                     | Public                                                                                     |
+| **Stack Tehnologic**                     | Python                                                                                     |
+| **Domeniul Industrial de Interes (DII)** | [ex: Robotică / Producție / Medical / Energie / Automotive]                                |
+| **Tip Rețea Neuronală**                  | [CNN / MLP / RNN / LSTM / Autoencoder / etc.]                                              |
 
 ### Rezultate Cheie (Versiunea Finală vs Etapa 6)
 

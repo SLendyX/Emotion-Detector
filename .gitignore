@@ -13,7 +13,6 @@ data/
 *.rar
 .downloads/
 models/
-docs/screenshots
 
 deprecated*/
 

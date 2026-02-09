@@ -195,6 +195,10 @@ def main():
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=25, gamma=0.1)
     # scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS, eta_min=0.00001)
 
+    patience = 10           # Câte epoci așteptăm să vedem o îmbunătățire
+    patience_counter = 0   # Numărător curent
+    best_val_loss = float('inf') # Inițializăm cu infinit
+
     # 7. Training Loop
     os.makedirs("models", exist_ok=True)
     
@@ -270,12 +274,32 @@ def main():
               f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% | "
               f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.2f}%")
 
+
         scheduler.step()
         
         # Optional: Print LR to confirm it's dropping
         current_lr = scheduler.get_last_lr()
         print(f"Epoch {epoch+1} LR: {current_lr}")
         
+        #Early stopping
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            patience_counter = 0 # Resetăm numărătorul, am găsit un model mai bun!
+            
+            # Salvăm acest model ca fiind "Cel Mai Bun" (The Gold Standard)
+            torch.save(model.state_dict(), "models/best_model.pt")
+            print(f"✅ Model saved (Best Val Loss: {best_val_loss:.4f})")
+            
+        else:
+            patience_counter += 1
+            print(f"⚠️ No improvement for {patience_counter}/{patience} epochs.")
+            
+            if patience_counter >= patience:
+                print(f"🛑 EARLY STOPPING TRIGGERED at epoch {epoch+1}!")
+                print("Modelul a început să facă overfitting. Oprire forțată.")
+                break # Ieșim din bucla for
+
+
         # Save Checkpoint
         if (epoch+1) % 10 == 0:
             torch.save(model.state_dict(), f"models/latest_checkpoints/emotion_model_epoch_{epoch+1}.pt")
