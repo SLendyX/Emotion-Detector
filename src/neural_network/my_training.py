@@ -11,12 +11,16 @@ from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler, random_
 import torchvision
 from torchvision import transforms, models
 from PIL import Image
+import time
 
 # --- CONFIGURATION ---
 DATA = "data"
 GENERATED_DIR = "data/generated"
 TRAIN_DIR = os.path.join(DATA, "raw/train")
 TEST_DIR =  os.path.join(DATA, "raw/test")
+RESULTS_DIR = "results"  # Folder for CSV results
+DOCS_DIR = "docs/grafice" # Folder for plots
+
 BATCH_SIZE = 32
 NUM_EPOCHS = 50
 LEARNING_RATE = 0.001
@@ -38,8 +42,10 @@ class EmotionDataset(Dataset):
         self.image_paths = []
         self.labels = []
 
-        # Helper function to walk directories (Avoids code duplication)
+        # Helper function to walk directories
         def load_images_from_folder(directory):
+            if not os.path.exists(directory):
+                return
             for root, dirs, files in os.walk(directory, topdown=True):
                 folder_name = os.path.basename(root)
                 if folder_name not in class_map:
@@ -54,8 +60,8 @@ class EmotionDataset(Dataset):
         load_images_from_folder(raf_dir)
         load_images_from_folder(gen_dir)
 
-        assert len(self.image_paths) == len(self.labels), "Images and Labels count don't match"
-
+        # assert len(self.image_paths) > 0, "No images found! Check paths."
+        
     def __len__(self):
         return len(self.image_paths)
     
@@ -95,7 +101,7 @@ class SimpleEmotionCNN(nn.Module):
     def __init__(self, num_classes=7):
         super(SimpleEmotionCNN, self).__init__()
 
-        # Block 1: 3 -> 32 channels. Output size: 50x50
+        # Block 1
         self.layer1 = nn.Sequential(
             nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, padding=1),
             nn.BatchNorm2d(32),
@@ -103,7 +109,7 @@ class SimpleEmotionCNN(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2)
         )
 
-        # Block 2: 32 -> 64 channels. Output size: 25x25
+        # Block 2
         self.layer2 = nn.Sequential(
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1),
             nn.BatchNorm2d(64),
@@ -111,15 +117,13 @@ class SimpleEmotionCNN(nn.Module):
             nn.MaxPool2d(2,2)
         ) 
 
-        # Block 3: 64 -> 128 channels. Output size: 12x12
+        # Block 3
         self.layer3 = nn.Sequential(
             nn.Conv2d(64, 128, kernel_size=3, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(),
             nn.MaxPool2d(2,2)
         )
-        #added dropout
-        # self.drop = nn.Dropout(p=0.5)
 
         # Classifier
         self.fc = nn.Linear(128 * 12 * 12, num_classes)
@@ -128,53 +132,43 @@ class SimpleEmotionCNN(nn.Module):
         out = self.layer1(x)
         out = self.layer2(out)
         out = self.layer3(out)
-
         out = out.view(out.size(0), -1) # Flatten
-        
-        # out= self.drop(out)
-        
         out = self.fc(out)
         return out
 
 # --- MAIN TRAINING LOOP ---
 def main():
-    # 1. Setup Device
+    # 1. Setup Directories
+    os.makedirs("models", exist_ok=True)
+    os.makedirs("models/latest_checkpoints", exist_ok=True)
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    os.makedirs(DOCS_DIR, exist_ok=True)
+
+    # 2. Setup Device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Training on: {device}")
-
-    print(TRAIN_DIR)
     
-    # 2. Create Two Distinct Datasets
+    # 3. Create Datasets
     train_tf, val_tf = get_transforms()
-
-    # The Training Dataset (With Augmentation)
     train_set = EmotionDataset(raf_dir=TRAIN_DIR, gen_dir=GENERATED_DIR, transform=train_tf)
-    
-    # The Validation Dataset (Clean, Resize only)
     val_set = EmotionDataset(raf_dir=TEST_DIR, gen_dir="", transform=val_tf)
 
-    # 4. Calculate Sampling Weights (The 40% Logic)
-    # We need to scan the full dataset to count the real split ratios
+    # 4. Calculate Sampling Weights
     raf_indices = []
     gen_indices = []
 
-    # Helper scan of the whole dataset logic to get global counts
-    # This is an estimation to set the global weights
     for idx, path in enumerate(train_set.image_paths):
         if "generated" in path:
             gen_indices.append(idx)
         else:
             raf_indices.append(idx)
             
-    n_gen_total = len(gen_indices)
-    n_raf_total = len(raf_indices)
-    if n_gen_total == 0: n_gen_total = 1
-    if n_raf_total == 0: n_raf_total = 1
+    n_gen_total = len(gen_indices) if len(gen_indices) > 0 else 1
+    n_raf_total = len(raf_indices) if len(raf_indices) > 0 else 1
 
     weight_per_gen = 0.4 / n_gen_total
     weight_per_raf = 0.6 / n_raf_total
 
-    # Apply weights specifically to the Training Subset
     train_weights = []
     for img_path in train_set.image_paths:
         if "generated" in img_path:
@@ -190,27 +184,25 @@ def main():
     # 6. Model Setup
     model = SimpleEmotionCNN(num_classes=7).to(device)
     criterion = nn.CrossEntropyLoss()
-    # criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=25, gamma=0.1)
-    # scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS, eta_min=0.00001)
 
-    patience = 10           # Câte epoci așteptăm să vedem o îmbunătățire
-    patience_counter = 0   # Numărător curent
-    best_val_loss = float('inf') # Inițializăm cu infinit
+    patience = 15           
+    patience_counter = 0   
+    best_val_loss = float('inf') 
 
-    # 7. Training Loop
-    os.makedirs("models", exist_ok=True)
-    
-    
     history = {
+        'epoch': [],
         'train_loss': [],
         'train_acc': [],
         'val_loss': [],
-        'val_acc': []
+        'val_acc': [],
+        'learning_rate': []
     }
     
     print("Starting Training...")
+
+    start_time = time.time()
 
     for epoch in range(NUM_EPOCHS):
         # --- TRAINING PHASE ---
@@ -230,19 +222,13 @@ def main():
 
             running_loss += loss.item()
 
-            # Calculate Training Accuracy
             _, predicted = torch.max(outputs.data, 1)
             train_total += labels.size(0)
             train_correct += (predicted == labels).sum().item()
 
-        # Calculate average train metrics
         train_loss = running_loss / len(train_loader)
         train_acc = 100 * train_correct / train_total
         
-        # Store them
-        history['train_loss'].append(train_loss)
-        history['train_acc'].append(train_acc)
-
         # --- VALIDATION PHASE ---
         model.eval() 
         val_running_loss = 0.0
@@ -254,80 +240,103 @@ def main():
                 images, labels = images.to(device), labels.to(device)
                 
                 outputs = model(images)
-                loss = criterion(outputs, labels) # We calculate loss here now too!
+                loss = criterion(outputs, labels)
                 val_running_loss += loss.item()
 
                 _, predicted = torch.max(outputs.data, 1)
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
         
-        # Calculate average val metrics
         val_loss = val_running_loss / len(val_loader)
         val_acc = 100 * correct / total
+        current_lr = scheduler.get_last_lr()[0]
 
-        # Store them
+        # Store History
+        history['epoch'].append(epoch + 1)
+        history['train_loss'].append(train_loss)
+        history['train_acc'].append(train_acc)
         history['val_loss'].append(val_loss)
         history['val_acc'].append(val_acc)
+        history['learning_rate'].append(current_lr)
 
-        # Print detailed stats
         print(f"Epoch [{epoch+1}/{NUM_EPOCHS}] "
               f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% | "
               f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.2f}%")
 
-
         scheduler.step()
-        
-        # Optional: Print LR to confirm it's dropping
-        current_lr = scheduler.get_last_lr()
-        print(f"Epoch {epoch+1} LR: {current_lr}")
-        
-        #Early stopping
+
+        # Check Early Stopping
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            patience_counter = 0 # Resetăm numărătorul, am găsit un model mai bun!
-            
-            # Salvăm acest model ca fiind "Cel Mai Bun" (The Gold Standard)
+            patience_counter = 0 
             torch.save(model.state_dict(), "models/best_model.pt")
             print(f"✅ Model saved (Best Val Loss: {best_val_loss:.4f})")
-            
         else:
             patience_counter += 1
             print(f"⚠️ No improvement for {patience_counter}/{patience} epochs.")
             
             if patience_counter >= patience:
                 print(f"🛑 EARLY STOPPING TRIGGERED at epoch {epoch+1}!")
-                print("Modelul a început să facă overfitting. Oprire forțată.")
-                break # Ieșim din bucla for
-
+                break 
 
         # Save Checkpoint
         if (epoch+1) % 10 == 0:
             torch.save(model.state_dict(), f"models/latest_checkpoints/emotion_model_epoch_{epoch+1}.pt")
+           
+           
+    # <--- 3. Stop Cronometru
+    end_time = time.time()
+    
+    # <--- 4. Calcul și Afișare
+    total_seconds = end_time - start_time
+    minutes = int(total_seconds // 60)
+    seconds = int(total_seconds % 60)
+    
+    time_str = f"Timp total antrenare ResNet18: {minutes}m {seconds}s"
+    print("\n" + "="*40)
+    print(f"⏱️  {time_str}")
+    print("="*40)
+
+    # <--- 5. (Opțional) Salvează într-un fișier text ca să nu uiți
+    with open("results/time_resnet.txt", "w") as f:
+        f.write(time_str)
             
+    # --- SAVE HISTORY TO CSV ---
+    print("💾 Saving training history...")
+    df = pd.DataFrame(history)
+    csv_path = os.path.join(RESULTS_DIR, "training_history.csv")
+    df.to_csv(csv_path, index=False)
+    print(f"✅ Training history saved to: {csv_path}")
 
     # --- PLOTTING ---
-    # Once the loop finishes, we plot the graphs
-    epochs_range = range(1, NUM_EPOCHS + 1)
+    # Use actual number of epochs run (in case of early stopping)
+    actual_epochs = history['epoch']
 
     plt.figure(figsize=(12, 5))
 
     # Plot Accuracy
     plt.subplot(1, 2, 1)
-    plt.plot(epochs_range, history['train_acc'], label='Training Accuracy')
-    plt.plot(epochs_range, history['val_acc'], label='Validation Accuracy')
+    plt.plot(actual_epochs, history['train_acc'], label='Training Accuracy')
+    plt.plot(actual_epochs, history['val_acc'], label='Validation Accuracy')
     plt.title('Accuracy over Epochs')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy (%)')
     plt.legend()
+    plt.grid(True)
 
     # Plot Loss
     plt.subplot(1, 2, 2)
-    plt.plot(epochs_range, history['train_loss'], label='Training Loss')
-    plt.plot(epochs_range, history['val_loss'], label='Validation Loss')
+    plt.plot(actual_epochs, history['train_loss'], label='Training Loss')
+    plt.plot(actual_epochs, history['val_loss'], label='Validation Loss')
     plt.title('Loss over Epochs')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
     plt.legend()
+    plt.grid(True)
 
-    # plt.show()
-    # Save the plot too
-    plt.savefig('docs/grafice/training_curves.png')
+    plot_path = os.path.join(DOCS_DIR, 'training_curves.png')
+    plt.savefig(plot_path)
+    print(f"✅ Training curves saved to: {plot_path}")
 
 if __name__ == "__main__":
     main()

@@ -2,13 +2,14 @@ import os
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, models
+from torchvision import transforms
 from PIL import Image
 import glob
 from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import json
 
 # --- CONFIGURATION ---
 BATCH_SIZE = 32
@@ -18,13 +19,15 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Paths
 RAF_TEST_DIR = 'data/raw/test'
-MODEL_PATH = 'models/emotion_model_epoch_50.pt'
+MODEL_PATH = 'models/latest_checkpoints/emotion_model_epoch_50.pt'
+RESULTS_DIR = 'results'  # <--- Folder pentru rezultate
+METRICS_FILE = os.path.join(RESULTS_DIR, 'test_metrics.json') # <--- Fisier destinatie
 
-# --- 1. UTILS & DATASET (Same as training) ---
+# --- 1. UTILS & DATASET ---
 class SimpleEmotionDataset(Dataset):
     def __init__(self, root_dir, transform=None):
         self.transform = transform
-        # Detect classes just like training script to ensure index consistency
+        # Detect classes just like training script
         self.classes = sorted([d for d in os.listdir(RAF_TEST_DIR) if os.path.isdir(os.path.join(RAF_TEST_DIR, d))])
         self.class_to_idx = {cls_name: i for i, cls_name in enumerate(self.classes)}
         
@@ -49,7 +52,7 @@ class SimpleEmotionDataset(Dataset):
             
         return image, label
 
-# --- 2. TRANSFORMS (Must match training validation transforms) ---
+# --- 2. TRANSFORMS ---
 test_transforms = transforms.Compose([
     transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
     transforms.ToTensor(),
@@ -61,7 +64,7 @@ class SimpleEmotionCNN(nn.Module):
     def __init__(self, num_classes=7):
         super(SimpleEmotionCNN, self).__init__()
 
-        # Block 1: 3 -> 32 channels. Output size: 50x50
+        # Block 1
         self.layer1 = nn.Sequential(
             nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, padding=1),
             nn.BatchNorm2d(32),
@@ -69,7 +72,7 @@ class SimpleEmotionCNN(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2)
         )
 
-        # Block 2: 32 -> 64 channels. Output size: 25x25
+        # Block 2
         self.layer2 = nn.Sequential(
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1),
             nn.BatchNorm2d(64),
@@ -77,7 +80,7 @@ class SimpleEmotionCNN(nn.Module):
             nn.MaxPool2d(2,2)
         ) 
 
-        # Block 3: 64 -> 128 channels. Output size: 12x12
+        # Block 3
         self.layer3 = nn.Sequential(
             nn.Conv2d(64, 128, kernel_size=3, padding=1),
             nn.BatchNorm2d(128),
@@ -92,7 +95,6 @@ class SimpleEmotionCNN(nn.Module):
         out = self.layer1(x)
         out = self.layer2(out)
         out = self.layer3(out)
-
         out = out.view(out.size(0), -1) # Flatten
         out = self.fc(out)
         return out
@@ -109,13 +111,7 @@ if __name__ == "__main__":
     print(f"Test Set Size: {len(test_dataset)} images")
     print(f"Classes: {test_dataset.classes}")
 
-    # Load Model Structure (Resnet18)
-    # model = models.resnet18(weights=None) # No need to download weights, we are loading ours
-    # num_ftrs = model.fc.in_features
-    # model.fc = nn.Linear(num_ftrs, NUM_CLASSES)
-    
-    
-    # # Load Model structure custom
+    # Load Model
     model = SimpleEmotionCNN(num_classes=7)
     
     # Load Trained Weights
@@ -129,11 +125,11 @@ if __name__ == "__main__":
     model = model.to(DEVICE)
     model.eval()
 
-    # Lists to store results
     all_preds = []
     all_labels = []
 
     # Inference Loop
+    print("Starting inference...")
     with torch.no_grad():
         for images, labels in test_loader:
             images = images.to(DEVICE)
@@ -143,16 +139,36 @@ if __name__ == "__main__":
             all_preds.extend(predicted.cpu().numpy())
             all_labels.extend(labels.numpy())
 
-    # --- METRICS ---
+    # --- METRICS & REPORT ---
     print("\n" + "="*30)
     print("       EVALUATION REPORT       ")
     print("="*30)
     
-    # Classification Report
+    # 1. Print Text Report
     print("\nClassification Report:")
     print(classification_report(all_labels, all_preds, target_names=test_dataset.classes))
 
-    # Confusion Matrix Plot
+    # 2. Get Dictionary for JSON
+    report_dict = classification_report(all_labels, all_preds, target_names=test_dataset.classes, output_dict=True)
+    
+    # Extract Macro Metrics
+    metrics_json = {
+        "accuracy": report_dict['accuracy'],
+        "macro_precision": report_dict['macro avg']['precision'],
+        "macro_recall": report_dict['macro avg']['recall'],
+        "macro_f1": report_dict['macro avg']['f1-score']
+    }
+
+    # 3. Save to JSON
+    if not os.path.exists(RESULTS_DIR):
+        os.makedirs(RESULTS_DIR)
+        
+    with open(METRICS_FILE, 'w') as f:
+        json.dump(metrics_json, f, indent=4)
+        
+    print(f"✅ Metrics saved to JSON: {METRICS_FILE}")
+
+    # 4. Confusion Matrix Plot
     cm = confusion_matrix(all_labels, all_preds)
     plt.figure(figsize=(10, 8))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
@@ -163,7 +179,10 @@ if __name__ == "__main__":
     plt.title('Confusion Matrix')
     
     # Save the plot
-    save_path = 'docs/grafice/confusion_matrix.png'
+    docs_dir = 'docs/grafice'
+    if not os.path.exists(docs_dir):
+        os.makedirs(docs_dir)
+        
+    save_path = os.path.join(docs_dir, 'confusion_matrix.png')
     plt.savefig(save_path)
-    print(f"\nConfusion Matrix saved to {save_path}")
-    print("You can view the image to see which emotions are being confused.")
+    print(f"✅ Confusion Matrix saved to {save_path}")

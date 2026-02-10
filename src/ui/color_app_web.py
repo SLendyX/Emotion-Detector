@@ -243,9 +243,9 @@ def draw_bar_chart(frame, probs, classes):
 # --- 5. VIDEO PROCESSOR ---
 class EmotionVideoProcessor(VideoProcessorBase):
     def __init__(self):
+        self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
         self.model = load_model()
         self.hr_monitor = HeartRateMonitor()
-        self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
         self.prob_buffer = deque(maxlen=FRAME_WINDOW)
         self.current_emotion = "neutral"
         self.current_confidence = 0
@@ -253,14 +253,20 @@ class EmotionVideoProcessor(VideoProcessorBase):
         self.current_zone = "Neutral"
         self.is_recording = False
         self.session_data = {'times': [], 'bpm': [], 'probs': []}
+        self.apply_gamma = APPLY_GAMMA
+        self.gamma_value = GAMMA_VALUE
+        
+        self.face_lost_counter = 0
+        self.face_lost_threshold = 30
 
     def recv(self, frame):
         img = frame.to_ndarray(format="bgr24")
         
-        if APPLY_GAMMA:
-            img = adjust_gamma(img, gamma=GAMMA_VALUE)
+        if self.apply_gamma:
+            img = adjust_gamma(img, gamma=self.gamma_value)
         
         display_frame = img.copy()
+        h, w, _ = display_frame.shape
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         faces = self.face_cascade.detectMultiScale(gray, 1.1, 5, minSize=(60, 60))
         faces = sorted(faces, key=lambda x: x[2]*x[3], reverse=True)
@@ -268,15 +274,18 @@ class EmotionVideoProcessor(VideoProcessorBase):
         current_probs = np.zeros(len(CLASSES))
 
         if len(faces) > 0 and self.model is not None:
-            (x, y, w, h) = faces[0]
+            # Reset face lost counter
+            self.face_lost_counter = 0
+            
+            (x, y, w_face, h_face) = faces[0]
             
             # 1. Heart Rate
-            bpm = self.hr_monitor.update(img[y:y+h, x:x+w])
+            bpm = self.hr_monitor.update(img[y:y+h_face, x:x+w_face])
             self.current_bpm = bpm
 
             # 2. Emotion Inference
             try:
-                face_roi = img[y:y+h, x:x+w]
+                face_roi = img[y:y+h_face, x:x+w_face]
                 rgb = cv2.cvtColor(face_roi, cv2.COLOR_BGR2RGB)
                 tensor = preprocess(Image.fromarray(rgb)).unsqueeze(0).to(DEVICE)
                 
@@ -319,10 +328,10 @@ class EmotionVideoProcessor(VideoProcessorBase):
 
                 # --- 5. DRAW UI ---
                 # Face Box (Gamified Color)
-                cv2.rectangle(display_frame, (x, y), (x+w, y+h), ui_color, 2)
+                cv2.rectangle(display_frame, (x, y), (x+w_face, y+h_face), ui_color, 2)
                 
                 # Header Background (Gamified Color)
-                cv2.rectangle(display_frame, (x, y-40), (x+w, y), ui_color, -1)
+                cv2.rectangle(display_frame, (x, y-40), (x+w_face, y), ui_color, -1)
                 
                 # Main Label (White Text)
                 cv2.putText(display_frame, f"{label.upper()} {int(confidence*100)}%", 
@@ -330,10 +339,10 @@ class EmotionVideoProcessor(VideoProcessorBase):
 
                 # Heart Rate & Zone Status (Bottom)
                 hr_color = (0, 0, 255) if bpm > 100 else (0, 255, 0)
-                cv2.putText(display_frame, f"HR: {int(bpm)} BPM", (x, y+h+30), 
+                cv2.putText(display_frame, f"HR: {int(bpm)} BPM", (x, y+h_face+30), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, hr_color, 2)
                 
-                cv2.putText(display_frame, status_text, (x, y+h+60), 
+                cv2.putText(display_frame, status_text, (x, y+h_face+60), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, ui_color, 2)
 
                 if self.is_recording:
@@ -341,7 +350,48 @@ class EmotionVideoProcessor(VideoProcessorBase):
                     cv2.putText(display_frame, "REC", (50, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
             except Exception as e:
-                pass
+                # IMPROVED: Log errors instead of silently passing
+                print(f"⚠️ Processing Error: {type(e).__name__}: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                
+                # Show error on frame
+                cv2.putText(display_frame, "Processing Error - Check Console", 
+                           (x, y-50), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        
+        else:
+            # NEW: Handle no face detected
+            self.face_lost_counter += 1
+            
+            # Show warning messages
+            warning_y = h // 2 - 50
+            
+            if self.face_lost_counter < self.face_lost_threshold:
+                # Temporary face loss
+                cv2.putText(display_frame, "NO FACE DETECTED", 
+                           (w//2 - 200, warning_y), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 165, 255), 3)
+                cv2.putText(display_frame, "Position your face in the frame", 
+                           (w//2 - 220, warning_y + 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
+            else:
+                # Prolonged face loss - clear buffer
+                if len(self.prob_buffer) > 0:
+                    self.prob_buffer.clear()
+                    print("⚠️ Face lost for >1 second - clearing emotion buffer")
+                
+                cv2.putText(display_frame, "FACE LOST", 
+                           (w//2 - 120, warning_y), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+                cv2.putText(display_frame, "Move back into frame", 
+                           (w//2 - 180, warning_y + 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+                
+                # Reset metrics
+                self.current_emotion = "No face"
+                self.current_confidence = 0
+                self.current_zone = "N/A"
+            
+            # Pause recording notification
+            if self.is_recording:
+                cv2.putText(display_frame, "⚠️ RECORDING PAUSED - No Face", 
+                           (w//2 - 250, warning_y + 100), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 140, 255), 2)
         
         # --- 6. SIDEBAR STATS (Always visible) ---
         if len(self.prob_buffer) > 0:
@@ -349,6 +399,7 @@ class EmotionVideoProcessor(VideoProcessorBase):
         draw_bar_chart(display_frame, current_probs, CLASSES)
 
         return av.VideoFrame.from_ndarray(display_frame, format="bgr24")
+
 
 
 # --- 6. STREAMLIT APP ---
@@ -413,6 +464,11 @@ def main():
             rtc_configuration=rtc_configuration,
             media_stream_constraints={"video": True, "audio": False},
         )
+        
+        # Update gamma settings in real-time
+        if ctx.video_processor:
+            ctx.video_processor.apply_gamma = apply_gamma
+            ctx.video_processor.gamma_value = gamma_val
     
     with col2:
         st.subheader("📊 Live Metrics")
@@ -438,12 +494,16 @@ def main():
         
         with col_rec2:
             if st.button("⏹️ Stop & Generate Report", use_container_width=True):
-                if ctx.video_processor and ctx.video_processor.is_recording:
+                if ctx.video_processor:
+                    was_recording = ctx.video_processor.is_recording
                     ctx.video_processor.is_recording = False
                     
-                    if len(ctx.video_processor.session_data['times']) > 0:
+                    # NEW: Validate data before generating report
+                    data_points = len(ctx.video_processor.session_data['times'])
+                    
+                    if was_recording and data_points >= 10:
                         report_path = generate_report(ctx.video_processor.session_data)
-                        st.success(f"Report saved!")
+                        st.success(f"✅ Report saved! ({data_points} data points)")
                         
                         # Display the report
                         st.image(report_path, caption="Session Report")
@@ -457,9 +517,12 @@ def main():
                                 mime="image/png",
                                 use_container_width=True
                             )
+                    elif was_recording and data_points > 0:
+                        st.warning(f"⚠️ Recording stopped but insufficient data ({data_points} frames). Need at least 10 frames for a valid report.")
+                        st.info("💡 Try recording for at least 5-10 seconds with your face visible.")
                     else:
                         st.warning("No data recorded yet!")
-        
+
         # Update live metrics
         if ctx.video_processor:
             emotion_placeholder.metric("Current Emotion", 
