@@ -12,12 +12,8 @@ data/
 *.zip
 *.rar
 .downloads/
-models/
 
 deprecated*/
-
-docs/grafice/
-docs/reports/
 
 *.drawio
 
