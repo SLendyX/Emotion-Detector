@@ -328,19 +328,20 @@ Această configurație a fost selectată empiric deoarece a oferit cel mai bun r
 
 ### 7.3 Demonstrație Funcțională End-to-End
 
-**Locație dovadă:** `docs/demo/` *(GIF / Video / Secvență screenshots)*
+**Locație dovadă:** `docs/demo/demo.mp4`
 
 **Fluxul demonstrat:**
 
-| Pas | Acțiune | Rezultat Vizibil |
-|-----|---------|------------------|
-| 1 | Input | [ex: Upload imagine nouă (NU din train/test)] |
-| 2 | Procesare | [ex: Bară de progres + preprocesare vizibilă] |
-| 3 | Inferență | [ex: Predicție afișată: "Clasa: Defect, Confidence: 87%"] |
-| 4 | Decizie | [ex: Alertă roșie + sunet pentru operator] |
+| **Pas** | **Acțiune**           | **Rezultat Vizibil**                                                                                           |
+| ------- | --------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **1**   | **Input (Achiziție)** | Flux video pornit + **Detectare Față** (Dreptunghi verde suprapus pe chipul subiectului).                      |
+| **2**   | **Procesare**         | Extragere ROI (Region of Interest) și redimensionare la **100x100 px** (invizibil, dar confirmat de tracking). |
+| **3**   | **Inferență**         | **Predicție afișată:** Etichetă (ex: "Happy") deasupra feței + Grafic bare (Confidence Scores) în stânga.      |
+| **4**   | **Decizie**           | Actualizare **Puls (BPM)** și stabilizarea emoției (prin buffer-ul de 3 cadre) pentru a evita "flickering-ul". |
 
-**Latență măsurată end-to-end:** [X] ms  
-**Data și ora demonstrației:** [DD.MM.YYYY, HH:MM]
+**Latență măsurată end-to-end:** **~35 ms** (din care Inferență pură: **1.65 ms**)
+**Data și ora demonstrației:** [10.02.2026, 15:00]
+
 
 ---
 
