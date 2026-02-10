@@ -3,7 +3,7 @@ import torch.onnx
 import onnxruntime as ort
 import time
 import numpy as np
-from my_training import SimpleEmotionCNN
+from neural_network.train import SimpleEmotionCNN
 
 
 # --- CONFIG ---

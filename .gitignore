@@ -16,4 +16,9 @@ models/
 
 deprecated*/
 
+docs/grafice/
+docs/reports/
+
+*.drawio
+
 .obsidian/
