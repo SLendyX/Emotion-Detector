@@ -477,41 +477,51 @@ proiect-rn-[nume-prenume]/
 ### 9.1 Cerințe Preliminare
 
 ```
-Python >= 3.8 (recomandat 3.10+)
-pip >= 21.0
-[sau LabVIEW >= 2020 pentru proiecte LabVIEW]
+Hardware: 
+- Webcam funcțională (pentru inferență live și colectare date) 
+- CPU standard (sau GPU NVIDIA opțional pentru antrenare rapidă) 
+Software: 
+- Python >= 3.8 (recomandat 3.10) 
+- pip >= 21.0 
+- Sistem de operare: Windows 10/11, Linux (Ubuntu 20.04+), sau macOS
 ```
 
 ### 9.2 Instalare
 
 ```bash
-# 1. Clonare repository
+# 1. Clonare repository (dacă e cazul)
 git clone [URL_REPOSITORY]
-cd proiect-rn-[nume-prenume]
+cd [nume-folder-proiect]
 
-# 2. Creare mediu virtual (recomandat)
+# 2. Creare mediu virtual (recomandat pentru izolare)
 python -m venv venv
-source venv/bin/activate        # Linux/Mac
-# sau: venv\Scripts\activate    # Windows
+
+# Activare mediu:
+# Windows:
+venv\Scripts\activate
+# Linux/Mac:
+source venv/bin/activate
 
 # 3. Instalare dependențe
+# (Asigurați-vă că aveți fișierul requirements.txt cu: torch, torchvision, opencv-python, scikit-learn, numpy)
 pip install -r requirements.txt
 ```
 
 ### 9.3 Rulare Pipeline Complet
 
 ```bash
-# Pasul 1: Preprocesare date (dacă rulați de la zero)
-python src/preprocessing/data_cleaner.py
-python src/preprocessing/data_splitter.py --stratify --random_state 42
+# Pasul 1: Colectare Date (Opțional - pentru date originale)
+# Se va deschide webcam-ul. Folosiți tastele (h-Happy, s-Sad etc.) pentru a salva poze.
+python src/data_acquisition/collect_highdef_data.py
 
-# Pasul 2: Antrenare model (pentru reproducere rezultate)
-python src/neural_network/train.py --config config/optimized_config.yaml
+# Pasul 2: Antrenare Model
+# Acest script preia datele, le preprocesează (resize 100x100), antrenează CNN-ul 
+# și salvează cel mai bun model în 'models/best_model.pt'
+python src/neural_network/trai.py
 
-# Pasul 3: Evaluare model pe test set
-python src/neural_network/evaluate.py --model models/optimized_model.h5
+# Pasul 3: Lansare Aplicație Live (Inference)
+# Deschide interfața grafică cu webcam-ul și rulează detecția în timp real
 
-# Pasul 4: Lansare aplicație UI
 streamlit run src/app/main.py
 # sau: python src/app/main.py (pentru Flask/FastAPI)
 # sau: [instrucțiuni LabVIEW dacă aplicabil]
@@ -520,20 +530,11 @@ streamlit run src/app/main.py
 ### 9.4 Verificare Rapidă 
 
 ```bash
-# Verificare că modelul se încarcă corect
-python -c "from src.neural_network.model import load_model; m = load_model('models/optimized_model.h5'); print('✓ Model încărcat cu succes')"
+# Verificare disponibilitate PyTorch și CUDA (dacă există)
+python -c "import torch; print(f'PyTorch: {torch.__version__}, CUDA: {torch.cuda.is_available()}')"
 
-# Verificare inferență pe un exemplu
-python src/neural_network/evaluate.py --model models/optimized_model.h5 --quick-test
-```
-
-### 9.5 Structură Comenzi LabVIEW (dacă aplicabil)
-
-```
-[Completați dacă proiectul folosește LabVIEW]
-1. Deschideți [nume_proiect].lvproj
-2. Rulați Main.vi
-3. ...
+# Verificare că fișierul modelului există și poate fi încărcat
+python -c "import torch; model = torch.load('models/best_model.pt'); print('✓ Model weights loaded successfully')"
 ```
 
 ---

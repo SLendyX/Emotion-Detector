@@ -6,6 +6,8 @@ __pycache__/
 # Ignoră datele (foarte important!)
 data/
 
+ui/
+
 # Ignoră fișierele de sistem sau IDE
 .DS_Store
 .vscode/
