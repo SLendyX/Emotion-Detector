@@ -1,0 +1,1 @@
+Timp total antrenare ResNet18: 6m 16s

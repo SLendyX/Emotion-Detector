@@ -51,6 +51,7 @@ def get_image_paths():
 def main():
     if not os.path.exists(DOCS_DIR):
         os.makedirs(DOCS_DIR)
+        os.makedirs(os.path.join(DOCS_DIR, "grafice"), exist_ok=True)
 
     # Get all file paths
     data_map = get_image_paths()
@@ -119,11 +120,10 @@ def main():
     plt.close()
 
     # =========================================================
-    # PART C: Pixel Intensity Analysis (Boxplot & Histogram)
+    # PART C: Pixel Intensity Analysis (FULL DATASET)
     # =========================================================
-    print("📉 Generating Pixel Intensity Analysis (Sampling 50 images/class)...")
-    
-    SAMPLE_SIZE = 50 
+    print("📉 Generating Pixel Intensity Analysis (ALL images)...")
+    print("   Note: This might take a moment depending on dataset size.")
     
     pixel_intensities = [] # For histogram (all pixels)
     mean_intensities_per_class = [] # For boxplot (mean per image)
@@ -134,11 +134,12 @@ def main():
             mean_intensities_per_class.append([])
             continue
             
-        # Sample random files to avoid Out Of Memory errors
-        current_sample = random.sample(file_list, min(len(file_list), SAMPLE_SIZE))
+        print(f"   -> Processing {len(file_list)} images for '{cat}'...")
+        
         class_means = []
         
-        for path in current_sample:
+        # Loop through ALL files in the list (Removed random.sample)
+        for path in file_list:
             img = cv2.imread(path)
             if img is not None:
                 # Convert BGR to Gray for brightness stats
@@ -147,8 +148,8 @@ def main():
                 # For Boxplot: Mean brightness of this specific image
                 class_means.append(np.mean(gray))
                 
-                # For Histogram: Add a random subset of pixels (to keep it fast)
-                # We flatten and take every 100th pixel to approximate distribution
+                # For Histogram: Add a random subset of pixels (to keep RAM usage safe)
+                # Even though we process all images, we still subsample the *pixels* # within the image to avoid creating an array with billions of items.
                 pixel_intensities.extend(gray.flatten()[::100])
         
         mean_intensities_per_class.append(class_means)
@@ -201,7 +202,7 @@ def main():
     # 2. Pixel Histogram (Global)
     plt.figure(figsize=(10, 6))
     plt.hist(pixel_intensities, bins=50, color='gray', alpha=0.7, edgecolor='black')
-    plt.title('Global Pixel Intensity Distribution (Sampled)')
+    plt.title('Global Pixel Intensity Distribution (All Images)')
     plt.xlabel('Pixel Value (0=Black, 255=White)')
     plt.ylabel('Frequency')
     plt.grid(axis='y', linestyle='--', alpha=0.7)
@@ -210,6 +211,7 @@ def main():
     median_val = np.median(pixel_intensities)
     std_val = np.std(pixel_intensities)
 
+    print(f"\nGlobal Statistics:")
     print(f"Medie: {mean_val/255.0:.2f}")
     print(f"Mediană: {median_val/255.0:.2f}")
     print(f"Deviație standard: {std_val/255.0:.2f}")
@@ -223,7 +225,6 @@ def main():
     q3_raw = np.percentile(pixels_np, 75)
 
     print("\n--- Statistici Detaliate (Normalizate 0-1) ---")
-    # We divide by 255.0 to get the 0.0 - 1.0 range you asked for
     print(f"* Min: {min_raw:.1f}, Max: {max_raw:.1f}")
     print(f"* Q1 (25%): {q1_raw:.4f}")
     print(f"* Q3 (75%): {q3_raw:.4f}")
