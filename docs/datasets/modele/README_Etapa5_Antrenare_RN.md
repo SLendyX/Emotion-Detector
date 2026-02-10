@@ -99,13 +99,13 @@ Completați tabelul cu hiperparametrii folosiți și **justificați fiecare aleg
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Learning rate          | 0.001                                                                                                                                                | Valoare standard pentru Adam optimizer, asigură convergență stabilă                                                                                                                   |
 | Batch size             | 32                                                                                                                                                   | Compromis memorie/stabilitate pentru N=2848 samples                                                                                                                                   |
-| Number of epochs       | 50                                                                                                                                                   | Cu early stopping după 10 epoci fără îmbunătățire                                                                                                                                     |
+| Number of epochs       | 50                                                                                                                                                   | Cu early stopping după 15 epoci fără îmbunătățire                                                                                                                                     |
 | Optimizer              | Adam                                                                                                                                                 | Adaptive learning rate, potrivit pentru RN cu 3 straturi                                                                                                                              |
 | Loss function          | Categorical Crossentropy                                                                                                                             | Clasificare multi-class cu K=7 clase                                                                                                                                                  |
 | Activation functions   | ReLU (hidden), Softmax (output)                                                                                                                      | ReLU pentru non-linearitate, Softmax pentru probabilități clase                                                                                                                       |
 | Learning Rate Cheduler | StepLR                                                                                                                                               | Cu cat modelul invata mai mult cu cat are nevoie de o rata mai mica de invatare ca sa nu avem probleme cu overfitul si ii spunem modelului sa se uite dupa detalii mai fine ale fetei |
 | Augmentare date        | **-Random Horizontal Flip:** p=0.5<br>**- Random Rotation:** degrees=15<br>**- Color Jitter:** brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1 | Pentru a obtine un model care poate generaliza mai usor trasaturile unei fete, avem nevoie de niste teste mai greu pentru model, din care sa invete.                                  |
-| Early Stopping         | 10                                                                                                                                                   | Am implementat Early Stopping pentru a economisi timp si pentru a preveni overfitting din partea modelului                                                                            |
+| Early Stopping         | 15                                                                                                                                                   | Am implementat Early Stopping pentru a economisi timp si pentru a preveni overfitting din partea modelului                                                                            |
 
 Am ales batch_size=32 pentru setul de antrenare de N=2.848 imagini, ceea ce rezultă în 2.848 / 32 = 89 iterații (pași de actualizare) per epocă.
 
@@ -163,16 +163,31 @@ Includeți **TOATE** cerințele Nivel 1 + următoarele:
 | Export ONNX/TFLite + benchmark latență       | Fișier `models/final_model.onnx` + demonstrație <50ms<br>Timp mediu per inferență: 1.65 ms |
 | Confusion Matrix + analiză 5 exemple greșite | `docs/confusion_matrix.png` + analiză în README                                            |
 
+| **Criteriu**               | **SimpleEmotionCNN (Custom)**    | **ResNet18 (Transfer Learning)** |
+| -------------------------- | -------------------------------- | -------------------------------- |
+| **Acuratețe Maximă (Val)** | **70.18%**                       | **78.31%**                       |
+| **Dimensiune Model**       | Mică (~1 MB)                     | Mare (~44 MB)                    |
+| **Timp Antrenare / Epocă** | Lent (~8 secunde)                | Rapid (~7 secunde)               |
+| **Concluzie**              | Mai rapid, dar mai puțin precis. | **Acuratețe superioară.**        |
+In cazul acesta ResNet18 ar fi un model mai bun deoarece are o acuratete mai mare cu 8% fata de modelul custom, este mai rapid la antrenare si benificiaza de *Transfer Learning,* avand deja cunostinte despre forme din setul ImageNet. 
+
+![failed_Examples](../../failed_examples.png)
+
+| Exemple | Real    | Predictie | Justificatie                                                                                                                                                                                                                                      |
+| ------- | ------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1      | neutral | disgust   | Exista posibilitatea ca modelul a interpretat gresit acest exemplu din cauza pozei facute din profil, care se poate sa fi influentat anumiti parametrii cu care obisnuit, cum ar fi ochii si gura                                                 |
+| #2      | neutral | fear      | Albul ochilor este destul de evident in aceasta poza si posibil a fost asociata cu frica, modelul fiind incapabil sa recunoasca eficient microexpresiile din aceasta emotie, se bazeaza foarte mult pe aceasta trasatura in recunoasterea fricii. |
+| #3      | neutral | sad       | Consider ca acest exemplu nu este cel mai bun, deoarece poate fi interpretat si de catre oameni ca potential trist, in astfel de cazuri contextul fiind foarte important. In acest caz este o eroare de clasificare din partea setului de date    |
+| #4      | neutral | sad       | Ca in exemplul precedent poate fi o eroare de clasificare, din cauza lipsei unui context, dar de asemenea ar putea fi un exemplu de "resting bitch face", in care unele fete neutre pot parea potential triste sau suparate.                      |
+| #5      | neutral | surprised | In acest exemplul fata are o structura destul de diferite fata de celelalte fete, ochii fiind un pic mai departati, modelul potential incurcand acea distanta pentru mirare.                                                                      |
+
+
+
 **Benchmark Latență:**
 - **Platformă:** CPU (ONNX Runtime
 - **Timp mediu inferență:** 1.65 ms
 - **Status:** Obiectiv atins cu succes (Target < 50ms). 
 - **Observație:** Modelul este extrem de ușor, fiind ideal pentru rulare în timp real pe dispozitive fără GPU dedicat (laptopuri office, Raspberry Pi etc.).
-
----
-de facut compararea si confusion matrix acasa pe setul de date actual
-- - - 
-
 
 **Resurse bonus:**
 - Export ONNX din PyTorch: [PyTorch ONNX Tutorial](https://pytorch.org/tutorials/beginner/onnx/export_simple_model_to_onnx_tutorial.html)
@@ -219,14 +234,6 @@ prediction = model.predict(input_scaled)  # predicție REALĂ și corectă
 
 ### 1. Pe ce clase greșește cel mai mult modelul?
 
-**Exemplu robotică (predicție traiectorii):**
-```
-Confusion Matrix arată că modelul confundă 'viraj stânga' cu 'viraj dreapta' în 18% din cazuri.
-Cauză posibilă: Features-urile IMU (gyro_z) sunt simetrice pentru viraje în direcții opuse.
-```
-
-**Completați pentru proiectul vostru:**
-```
 Confuziile majore sunt:
 - Modelul incurca 'disgust' cu 'sad' 12.4% din cazuri
   Cauza posibila: incruntarea combinata cu colturile gurii intoarse in jos pot fi confundate cu ddezgustul
@@ -236,58 +243,26 @@ Confuziile majore sunt:
   Cauza foarte posibila: O trasatura fizica foarte comuna la majoritatea persoanelor, care este denumita ca 'resting bitch face'. Prin aceasta intelegem ca fata neutra a unor persoane ar putea fi perceputa, ca usor dernajta, suparata sau trista. De aceea putem observa un numar similar de identificari eronate in cazul neutrului cu tristetea, in care a categorisit ca neutre 12.7% din imaginile cu fete triste.
 - Modelul incurca 'happy' cu 'sad' 11.3% din cazuri
   Cauza posibila: Este destul de posibil ca gura sa incurce emotii puternice de tristetea in care gura este deschisa cu un ras in hohote, aceasta greseala fiind cazuata de rezolutia de 100x100 de pixeli a pozei pe care o proceseaza modelul
-```
+
 
 ### 2. Ce caracteristici ale datelor cauzează erori?
 
-**Exemplu vibrații motor:**
-```
-Modelul eșuează când zgomotul de fond depășește 40% din amplitudinea semnalului util.
-În mediul industrial, acest nivel de zgomot apare când mai multe motoare funcționează simultan.
-```
-
-**Completați pentru proiectul vostru:**
-```
 Modelul esueaza in conditii de luminozitate prea mare, moment in care emotiile mai putin incarcate de energie, cum ar fi: tristeatea, dezgustul sau frica, nu sunt detectate optim sau aproape deloc.
 Pentru o detectare optima modelul are nevoie de un model mediu de luminozitate
-```
+
 
 ### 3. Ce implicații are pentru aplicația industrială?
 
-**Exemplu detectare defecte sudură:**
-```
-FALSE NEGATIVES (defect nedetectat): CRITIC → risc rupere sudură în exploatare
-FALSE POSITIVES (alarmă falsă): ACCEPTABIL → piesa este re-inspectată manual
-
-Prioritate: Minimizare false negatives chiar dacă cresc false positives.
-Soluție: Ajustare threshold clasificare de la 0.5 → 0.3 pentru clasa 'defect'.
-```
-
-**Completați pentru proiectul vostru:**
-```
 FALSE NEGATIVES (emotie nedetectata): DERANJ MODERAT → poate sa strice experienta utilizatorului, sau sa genereze date eronate pentru analiza
 FALSE POSITIVES (alarmă falsă): ACCEPTABIL → nu este la fel de grav, utilizatorul macar primeste un feedback, dar tot poate afecta experienta
 Prioritate: Minimizare false negatives, cu prioritizarea mentinerii la un nivel stabil a fals pozitivelor
 Solutie: Ajustarea threshholdului pentru emotiile care sunt mai sunt la fel de bine detectate
-```
 
 ### 4. Ce măsuri corective propuneți?
 
-**Exemplu clasificare imagini piese:**
-```
-Măsuri corective:
-1. Colectare 500+ imagini adiționale pentru clasa minoritară 'zgârietură ușoară'
-2. Implementare filtrare Gaussian blur pentru reducere zgomot cameră industrială
-3. Augmentare perspective pentru simulare unghiuri camera variabile (±15°)
-4. Re-antrenare cu class weights: [1.0, 2.5, 1.2] pentru echilibrare
-```
-
-**Completați pentru proiectul vostru:**
-```
 1. Colectare de imagini aditionale pentru clasele cu performanta mai slaba cum este 'sad'
 2. Augmentare luminozitatea imaginilor din antrenare
 3. Implementarea unui filtru gamma pentru interfata ui
-```
 
 ---
 
@@ -430,37 +405,37 @@ streamlit run src/app/main.py
 
 ### Antrenare Model - Nivel 1 (OBLIGATORIU)
 - [x] Model antrenat de la ZERO (nu fine-tuning pe model pre-antrenat)
-- [ ] Minimum 10 epoci rulate (verificabil în `results/training_history.csv`)
+- [x] Minimum 10 epoci rulate (verificabil în `results/training_history.csv`)
 - [x] Tabel hiperparametri + justificări completat în acest README
 - [x] Metrici calculate pe test set: **Accuracy ≥65%**, **F1 ≥0.60**
 - [x] Model salvat în `models/trained_model.h5` (sau .pt, .lvmodel)
-- [ ] `results/training_history.csv` există cu toate epoch-urile
+- [x] `results/training_history.csv` există cu toate epoch-urile
 
 ### Integrare UI și Demonstrație - Nivel 1 (OBLIGATORIU)
 - [x] Model ANTRENAT încărcat în UI din Etapa 4 (nu model dummy)
 - [x] UI face inferență REALĂ cu predicții corecte
-- [ ] Screenshot inferență reală în `docs/screenshots/inference_real.png`
+- [x] Screenshot inferență reală în `docs/screenshots/inference_real.png`
 - [x] Verificat: predicțiile sunt diferite față de Etapa 4 (când erau random)
 
 ### Documentație Nivel 2 (dacă aplicabil)
 - [x] Early stopping implementat și documentat în cod
 - [x] Learning rate scheduler folosit (ReduceLROnPlateau / StepLR)
 - [x] Augmentări relevante domeniu aplicate (NU rotații simple!)
-- [ ] Grafic loss/val_loss salvat în `docs/loss_curve.png`
+- [x] Grafic loss/val_loss salvat în `docs/loss_curve.png`
 - [x] Analiză erori în context industrial completată (4 întrebări răspunse)
 - [ ] Metrici Nivel 2: **Accuracy ≥75%**, **F1 ≥0.70**
 
 ### Documentație Nivel 3 Bonus (dacă aplicabil)
-- [ ] Comparație 2+ arhitecturi (tabel comparativ + justificare)
+- [x] Comparație 2+ arhitecturi (tabel comparativ + justificare)
 - [x] Export ONNX/TFLite + benchmark latență (<50ms demonstrat)
-- [ ] Confusion matrix + analiză 5 exemple greșite cu implicații
+- [x] Confusion matrix + analiză 5 exemple greșite cu implicații
 
 ### Verificări Tehnice
 - [ ] `requirements.txt` actualizat cu toate bibliotecile noi
 - [x] Toate path-urile RELATIVE (nu absolute: `/Users/...` )
 - [x] Cod nou comentat în limba română sau engleză (minimum 15%)
 - [x] `git log` arată commit-uri incrementale (NU 1 commit gigantic)
-- [ ] Verificare anti-plagiat: toate punctele 1-5 respectate
+- [x] Verificare anti-plagiat: toate punctele 1-5 respectate
 
 ### Verificare State Machine (Etapa 4)
 - [x] Fluxul de inferență respectă stările din State Machine
@@ -468,12 +443,12 @@ streamlit run src/app/main.py
 - [x] UI reflectă State Machine-ul pentru utilizatorul final
 
 ### Pre-Predare
-- [ ] `docs/etapa5_antrenare_model.md` completat cu TOATE secțiunile
-- [ ] Structură repository conformă: `docs/`, `results/`, `models/` actualizate
+- [x] `docs/etapa5_antrenare_model.md` completat cu TOATE secțiunile
+- [x] Structură repository conformă: `docs/`, `results/`, `models/` actualizate
 - [x] Commit: `"Etapa 5 completă – Accuracy=X.XX, F1=X.XX"`
-- [ ] Tag: `git tag -a v0.5-model-trained -m "Etapa 5 - Model antrenat"`
-- [ ] Push: `git push origin main --tags`
-- [ ] Repository accesibil (public sau privat cu acces profesori)
+- [x] Tag: `git tag -a v0.5-model-trained -m "Etapa 5 - Model antrenat"`
+- [x] Push: `git push origin main --tags`
+- [x] Repository accesibil (public sau privat cu acces profesori)
 
 ---
 
