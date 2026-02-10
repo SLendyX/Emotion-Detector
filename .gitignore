@@ -6,7 +6,7 @@ __pycache__/
 # Ignoră datele (foarte important!)
 data/
 
-ui/
+src/ui/
 
 # Ignoră fișierele de sistem sau IDE
 .DS_Store
@@ -20,3 +20,6 @@ deprecated*/
 *.drawio
 
 .obsidian/
+
+docs/grafice/
+docs/datasets/
