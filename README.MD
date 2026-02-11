@@ -594,11 +594,12 @@ Tranziția către **RAF-DB Balanced** (color, 100x100 px) a adus un salt calitat
 ## 11. Bibliografie
 
 *[Minimum 3 surse cu DOI/link funcțional - format: Autor, Titlu, Anul, Link]*
-
-1. [Autor], [Titlu articol/carte], [Anul]. DOI: [link] sau URL: [link]
-2. [Autor], [Titlu articol/carte], [Anul]. DOI: [link] sau URL: [link]
-3. [Autor], [Titlu articol/carte], [Anul]. DOI: [link] sau URL: [link]
-4. [Surse suplimentare dacă este cazul]
+- **Abaza, B.**, _RN-Cursul 2-3 & 4: Fundamente Teoretice (Structura neuronului artificial, funcții de activare, antrenare vs. inferență)_, 2025-2026. Universitatea Națională de Știință și Tehnologie Politehnica București.
+- **Abaza, B.**, _RN-Cursul 9: Arhitectură CNN (Convoluție, pooling și pregătirea dataset-ului)_, 2025-2026. Universitatea Națională de Știință și Tehnologie Politehnica București.
+- **Abaza, B.**, _RN-Cursul 8: Computer Vision (Utilizarea MediaPipe și pre-procesarea imaginilor)_, 2025-2026. Universitatea Națională de Știință și Tehnologie Politehnica București.
+- **Abaza, B.**, _RN-Cursul 10 & 11: Arhitectura Aplicației (Implementarea State Machine în gestionarea fluxului video)_, 2025-2026. Universitatea Națională de Știință și Tehnologie Politehnica București.
+- **PyTorch Documentation**, _PyTorch Documentation and Tutorials_, 2024. URL: [https://pytorch.org/docs/stable/index.html](https://pytorch.org/docs/stable/index.html)
+- **Li, S., Deng, W.**, _Reliable Crowdsourcing and Deep Locality-Preserving Learning for Expression Recognition in the Wild (RAF-DB Dataset)_, 2017. Kaggle: [https://doi.org/10.1109/CVPR.2017.300](https://www.kaggle.com/datasets/shuvoalok/raf-db-dataset)
 
 **Exemple format:**
 - Abaza, B., 2025. AI-Driven Dynamic Covariance for ROS 2 Mobile Robot Localization. Sensors, 25, 3026. https://doi.org/10.3390/s25103026
@@ -615,40 +616,40 @@ Tranziția către **RAF-DB Balanced** (color, 100x100 px) a adus un salt calitat
 - [x] **Contribuție ≥40% date originale** (verificabil în `data/generated/`)
 - [x] **Model antrenat de la zero** (NU pre-trained fine-tuning)
 - [x] **Minimum 4 experimente** de optimizare documentate (tabel în Secțiunea 5.3)
-- [ ] **Confusion matrix** generată și interpretată (Secțiunea 6.2)
-- [ ] **State Machine** definit cu minimum 4-6 stări (Secțiunea 4.2)
-- [ ] **Cele 3 module funcționale:** Data Logging, RN, UI (Secțiunea 4.1)
-- [ ] **Demonstrație end-to-end** disponibilă în `docs/demo/`
+- [x] **Confusion matrix** generată și interpretată (Secțiunea 6.2)
+- [x] **State Machine** definit cu minimum 4-6 stări (Secțiunea 4.2)
+- [x] **Cele 3 module funcționale:** Data Logging, RN, UI (Secțiunea 4.1)
+- [x] **Demonstrație end-to-end** disponibilă în `docs/demo/`
 
 ### Repository și Documentație
 
-- [ ] **README.md** complet (toate secțiunile completate cu date reale)
-- [ ] **4 README-uri etape** prezente în `docs/` (etapa3, etapa4, etapa5, etapa6)
-- [ ] **Screenshots** prezente în `docs/screenshots/`
-- [ ] **Structura repository** conformă cu Secțiunea 8
-- [ ] **requirements.txt** actualizat și funcțional
-- [ ] **Cod comentat** (minim 15% linii comentarii relevante)
-- [ ] **Toate path-urile relative** (nu absolute: `/Users/...` sau `C:\...`)
+- [x] **README.md** complet (toate secțiunile completate cu date reale)
+- [x] **4 README-uri etape** prezente în `docs/` (etapa3, etapa4, etapa5, etapa6)
+- [x] **Screenshots** prezente în `docs/screenshots/`
+- [x] **Structura repository** conformă cu Secțiunea 8
+- [x] **requirements.txt** actualizat și funcțional
+- [x] **Cod comentat** (minim 15% linii comentarii relevante)
+- [x] **Toate path-urile relative** (nu absolute: `/Users/...` sau `C:\...`)
 
 ### Acces și Versionare
 
-- [ ] **Repository accesibil** cadrelor didactice RN (public sau privat cu acces)
-- [ ] **Tag `v0.6-optimized-final`** creat și pushed
-- [ ] **Commit-uri incrementale** vizibile în `git log` (nu 1 commit gigantic)
-- [ ] **Fișiere mari** (>100MB) excluse sau în `.gitignore`
+- [x] **Repository accesibil** cadrelor didactice RN (public sau privat cu acces)
+- [x] **Tag `v0.6-optimized-final`** creat și pushed
+- [x] **Commit-uri incrementale** vizibile în `git log` (nu 1 commit gigantic)
+- [x] **Fișiere mari** (>100MB) excluse sau în `.gitignore`
 
 ### Verificare Anti-Plagiat
 
-- [ ] Model antrenat **de la zero** (weights inițializate random, nu descărcate)
-- [ ] **Minimum 40% date originale** (nu doar subset din dataset public)
-- [ ] Cod propriu sau clar atribuit (surse citate în Bibliografie)
+- [x] Model antrenat **de la zero** (weights inițializate random, nu descărcate)
+- [x] **Minimum 40% date originale** (nu doar subset din dataset public)
+- [x] Cod propriu sau clar atribuit (surse citate în Bibliografie)
 
 ---
 
 ## Note Finale
 
 **Versiune document:** FINAL pentru examen  
-**Ultima actualizare:** [DD.MM.YYYY]  
+**Ultima actualizare:** 10.02.2026
 **Tag Git:** `v0.6-optimized-final`
 
 ---
