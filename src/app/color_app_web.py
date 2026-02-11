@@ -15,7 +15,7 @@ from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfigurati
 import av
 
 # --- CONFIGURATION ---
-MODEL_PATH = 'models/emotion_model_epoch_50.pt'
+MODEL_PATH = 'models/optimized_model.pt'
 REPORTS_DIR = "docs/reports"
 IMAGE_SIZE = 100
 CLASSES = ['angry', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
@@ -211,34 +211,55 @@ def generate_report(session_data):
 
 
 # --- 4. UI DRAWING UTILS ---
-def draw_bar_chart(frame, probs, classes):
+def draw_side_panel(frame, probs, classes):
     h, w, _ = frame.shape
-    bar_width = 150
-    start_x = 10
-    start_y = 100
+    panel_width = 300  # Width of the new sidebar
     
-    overlay = frame.copy()
-    cv2.rectangle(overlay, (0, 0), (220, h), (0, 0, 0), -1)
-    cv2.addWeighted(overlay, 0.4, frame, 0.6, 0, frame)
-
+    # Create a new canvas: (Height, Original Width + Panel Width, 3 Channels)
+    # Initialize with a dark grey background color (30, 30, 30)
+    canvas = np.full((h, w + panel_width, 3), 30, dtype=np.uint8)
+    
+    # Copy the webcam feed onto the left side of the canvas
+    canvas[0:h, 0:w] = frame
+    
+    # --- DRAW STATS ON THE RIGHT PANEL ---
+    start_x = w + 20  # Start drawing 20px into the new panel
+    start_y = 80
+    bar_max_width = 180
+    
+    # Find dominant emotion for highlighting
     winner_idx = np.argmax(probs)
 
     for i, (prob, label) in enumerate(zip(probs, classes)):
-        y = start_y + (i * 35)
-        color = (255, 255, 255)
+        y = start_y + (i * 50)  # Vertical spacing
         
-        if i == winner_idx:
-            color = (0, 255, 0)
+        # Use your defined EMOTION_COLORS
+        color = EMOTION_COLORS.get(label, (200, 200, 200))
         
-        if label in ['fear', 'sad'] and prob > 0.20 and i != winner_idx:
-            color = (0, 255, 255)
+        # Highlight logic: Dim colors if probability is very low
+        if prob < 0.1 and i != winner_idx:
+            # Darken the color for low confidence
+            color = tuple(c // 3 for c in color)
+            text_color = (100, 100, 100)
+        else:
+            text_color = (255, 255, 255)
 
-        cv2.putText(frame, f"{label.upper()}", (start_x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-        cv2.rectangle(frame, (start_x + 80, y - 10), (start_x + 80 + bar_width, y + 5), (50, 50, 50), -1)
-        fill_width = int(prob * bar_width)
-        cv2.rectangle(frame, (start_x + 80, y - 10), (start_x + 80 + fill_width, y + 5), color, -1)
-        cv2.putText(frame, f"{int(prob*100)}%", (start_x + 90 + bar_width, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+        # 1. Label Text
+        cv2.putText(canvas, f"{label.upper()}", (start_x, y), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 1)
+        
+        # 2. Bar Background (Darker Grey)
+        cv2.rectangle(canvas, (start_x, y + 10), (start_x + bar_max_width, y + 25), (50, 50, 50), -1)
+        
+        # 3. Bar Fill
+        fill_width = int(prob * bar_max_width)
+        cv2.rectangle(canvas, (start_x, y + 10), (start_x + fill_width, y + 25), color, -1)
+        
+        # 4. Percentage Text
+        cv2.putText(canvas, f"{int(prob*100)}%", (start_x + bar_max_width + 10, y + 23), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, 1)
 
+    return canvas
 
 # --- 5. VIDEO PROCESSOR ---
 class EmotionVideoProcessor(VideoProcessorBase):
@@ -346,9 +367,12 @@ class EmotionVideoProcessor(VideoProcessorBase):
         # --- 6. SIDEBAR STATS (Always visible) ---
         if len(self.prob_buffer) > 0:
             current_probs = np.mean(self.prob_buffer, axis=0)
-        draw_bar_chart(display_frame, current_probs, CLASSES)
+        
+        # This returns a NEW, WIDER image called 'final_output'
+        final_output = draw_side_panel(display_frame, current_probs, CLASSES)
 
-        return av.VideoFrame.from_ndarray(display_frame, format="bgr24")
+        # Return the wider image to Streamlit
+        return av.VideoFrame.from_ndarray(final_output, format="bgr24")
 
 
 # --- 6. STREAMLIT APP ---
